@@ -1,0 +1,11 @@
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/libsec1-003821b153bdb317.rmeta: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/point.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/error.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/parameters.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/private_key.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/traits.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/../README.md
+
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/sec1-003821b153bdb317.d: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/point.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/error.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/parameters.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/private_key.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/traits.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/../README.md
+
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/lib.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/point.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/error.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/parameters.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/private_key.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/traits.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/sec1-0.3.0/src/../README.md:

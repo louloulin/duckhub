@@ -1,0 +1,9 @@
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/libunicode_segmentation-8bcbf2981140ca9c.rmeta: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/grapheme.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/sentence.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/word.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/tables.rs
+
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/unicode_segmentation-8bcbf2981140ca9c.d: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/grapheme.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/sentence.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/word.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/tables.rs
+
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/lib.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/grapheme.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/sentence.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/word.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/unicode-segmentation-1.12.0/src/tables.rs:

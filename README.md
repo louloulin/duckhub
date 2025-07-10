@@ -10,8 +10,12 @@
 - **查询优化**: 内置查询优化器，支持谓词下推、投影下推等优化策略
 - **事务支持**: 完整的ACID事务支持
 
-### 🏞️ 数据湖集成 (DuckDB Lake)
-- **多格式支持**: Parquet、CSV、JSON、ORC、Avro等格式
+### 🏞️ 数据湖集成 (DuckLake + 传统数据湖)
+- **DuckLake原生支持**: 基于DuckDB的现代化lakehouse格式
+- **ACID事务**: 完整的事务支持和数据一致性保证
+- **时间旅行**: 查询历史版本数据，支持版本号和时间戳
+- **Schema演进**: 安全的Schema变更和向后兼容
+- **多格式支持**: Parquet、CSV、JSON、Delta Lake等格式
 - **对象存储**: 支持S3、Azure Blob、Google Cloud Storage
 - **外部表**: 直接查询数据湖文件，无需数据移动
 - **分区支持**: 智能分区策略，提升查询性能
@@ -120,6 +124,19 @@ cargo build --release --bin duckhub
 
 # 直接查询数据湖文件
 ./target/release/duckhub lake query /path/to/data.parquet "SELECT COUNT(*) FROM table" --format parquet
+
+# DuckLake操作
+# 创建DuckLake数据库
+./target/release/duckhub ducklake create financial_db --metadata-path financial.ducklake
+
+# 附加DuckLake数据库
+./target/release/duckhub ducklake attach financial_db --metadata-path financial.ducklake
+
+# 查看快照
+./target/release/duckhub ducklake snapshots financial_db
+
+# 时间旅行查询
+./target/release/duckhub ducklake time-travel financial_db transactions --version 1 "SELECT * FROM financial_db.transactions"
 ```
 
 #### 3. 性能测试

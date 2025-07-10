@@ -62,6 +62,12 @@ enum Commands {
         #[command(subcommand)]
         action: LakeAction,
     },
+
+    /// Manage DuckLake operations
+    DuckLake {
+        #[command(subcommand)]
+        action: DuckLakeAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -91,26 +97,83 @@ enum LakeAction {
     CreateTable {
         /// Table name
         table: String,
-        
+
         /// File path
         file: String,
-        
+
         /// File format (parquet, csv, json)
         #[arg(short, long, default_value = "parquet")]
         format: String,
     },
-    
+
     /// Query data lake file directly
     Query {
         /// File path
         file: String,
-        
+
         /// SQL query
         sql: String,
-        
+
         /// File format (parquet, csv, json)
         #[arg(short, long, default_value = "parquet")]
         format: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum DuckLakeAction {
+    /// Create DuckLake database
+    Create {
+        /// Database name
+        name: String,
+
+        /// Metadata path
+        #[arg(short, long)]
+        metadata_path: String,
+
+        /// Data path (optional)
+        #[arg(short, long)]
+        data_path: Option<String>,
+    },
+
+    /// Attach existing DuckLake database
+    Attach {
+        /// Database name
+        name: String,
+
+        /// Metadata path
+        #[arg(short, long)]
+        metadata_path: String,
+
+        /// Read-only mode
+        #[arg(long)]
+        read_only: bool,
+    },
+
+    /// List snapshots
+    Snapshots {
+        /// Database name
+        database: String,
+    },
+
+    /// Time travel query
+    TimeTravel {
+        /// Database name
+        database: String,
+
+        /// Table name
+        table: String,
+
+        /// Version number
+        #[arg(short, long)]
+        version: Option<u64>,
+
+        /// Timestamp
+        #[arg(short, long)]
+        timestamp: Option<String>,
+
+        /// SQL query
+        sql: String,
     },
 }
 
@@ -165,6 +228,9 @@ async fn main() -> Result<()> {
         }
         Commands::Lake { action } => {
             handle_lake_action(engine, action).await?;
+        }
+        Commands::DuckLake { action } => {
+            handle_ducklake_action(engine, action).await?;
         }
     }
 
@@ -445,6 +511,155 @@ async fn handle_lake_action(engine: Arc<DuckDBEngine>, action: LakeAction) -> Re
 
             println!("{} Query executed on '{}'", "Success:".green().bold(), file.blue());
             println!("Returned {} rows", result.row_count);
+        }
+    }
+
+    Ok(())
+}
+
+async fn handle_ducklake_action(engine: Arc<DuckDBEngine>, action: DuckLakeAction) -> Result<()> {
+    match action {
+        DuckLakeAction::Create { name, metadata_path, data_path } => {
+            // Create DuckLake secret
+            let secret_sql = if let Some(data_path) = data_path {
+                format!(
+                    "CREATE SECRET {} (TYPE DUCKLAKE, METADATA_PATH '{}', DATA_PATH '{}')",
+                    name, metadata_path, data_path
+                )
+            } else {
+                format!(
+                    "CREATE SECRET {} (TYPE DUCKLAKE, METADATA_PATH '{}')",
+                    name, metadata_path
+                )
+            };
+
+            let query = Query {
+                id: generate_id(),
+                sql: secret_sql,
+                parameters: HashMap::new(),
+                user_id: None,
+                created_at: now(),
+                timeout_seconds: None,
+            };
+
+            engine.execute_query(&query).await?;
+            println!("{} Created DuckLake secret '{}'", "Success:".green().bold(), name.green());
+        }
+
+        DuckLakeAction::Attach { name, metadata_path, read_only } => {
+            let attach_sql = if read_only {
+                format!("ATTACH 'ducklake:{}' (READ_ONLY) AS {}", metadata_path, name)
+            } else {
+                format!("ATTACH 'ducklake:{}' AS {}", metadata_path, name)
+            };
+
+            let query = Query {
+                id: generate_id(),
+                sql: attach_sql,
+                parameters: HashMap::new(),
+                user_id: None,
+                created_at: now(),
+                timeout_seconds: None,
+            };
+
+            engine.execute_query(&query).await?;
+            println!("{} Attached DuckLake database '{}'", "Success:".green().bold(), name.green());
+        }
+
+        DuckLakeAction::Snapshots { database } => {
+            let query = Query {
+                id: generate_id(),
+                sql: format!("SELECT * FROM {}.snapshots() ORDER BY snapshot_id DESC LIMIT 10", database),
+                parameters: HashMap::new(),
+                user_id: None,
+                created_at: now(),
+                timeout_seconds: None,
+            };
+
+            match engine.execute_query(&query).await {
+                Ok(result) => {
+                    if result.rows.is_empty() {
+                        println!("{} No snapshots found for database '{}'", "Info:".blue().bold(), database);
+                    } else {
+                        println!("{} Snapshots for database '{}':", "Info:".blue().bold(), database.green());
+
+                        let mut table_data = Vec::new();
+                        table_data.push(result.columns.clone());
+
+                        for row in &result.rows {
+                            let string_row: Vec<String> = row.iter()
+                                .map(|v| match v {
+                                    serde_json::Value::Null => "NULL".to_string(),
+                                    serde_json::Value::String(s) => s.clone(),
+                                    _ => v.to_string(),
+                                })
+                                .collect();
+                            table_data.push(string_row);
+                        }
+
+                        let table = Table::new(table_data);
+                        println!("{}", table);
+                    }
+                }
+                Err(e) => {
+                    println!("{} Failed to get snapshots: {}", "Error:".red().bold(), e);
+                }
+            }
+        }
+
+        DuckLakeAction::TimeTravel { database, table, version, timestamp, sql } => {
+            let time_travel_clause = if let Some(v) = version {
+                format!("AT (VERSION => {})", v)
+            } else if let Some(ts) = timestamp {
+                format!("AT (TIMESTAMP => '{}')", ts)
+            } else {
+                return Err(DuckHubError::validation("Either version or timestamp must be specified"));
+            };
+
+            // Replace table references in SQL with time travel syntax
+            let time_travel_sql = sql.replace(
+                &format!("{}.{}", database, table),
+                &format!("{}.{} {}", database, table, time_travel_clause)
+            );
+
+            let query = Query {
+                id: generate_id(),
+                sql: time_travel_sql,
+                parameters: HashMap::new(),
+                user_id: None,
+                created_at: now(),
+                timeout_seconds: None,
+            };
+
+            let result = engine.execute_query(&query).await?;
+
+            if let Some(v) = version {
+                println!("{} Time travel query at version {} executed successfully", "Success:".green().bold(), v);
+            } else if let Some(ts) = timestamp {
+                println!("{} Time travel query at timestamp '{}' executed successfully", "Success:".green().bold(), ts);
+            }
+
+            println!("Returned {} rows", result.row_count);
+
+            // Display results in table format
+            if !result.rows.is_empty() {
+                let mut table_data = Vec::new();
+                table_data.push(result.columns.clone());
+
+                for row in &result.rows {
+                    let string_row: Vec<String> = row.iter()
+                        .map(|v| match v {
+                            serde_json::Value::Null => "NULL".to_string(),
+                            serde_json::Value::String(s) => s.clone(),
+                            _ => v.to_string(),
+                        })
+                        .collect();
+                    table_data.push(string_row);
+                }
+
+                let table = Table::new(table_data);
+                println!("{}", table);
+            }
         }
     }
 

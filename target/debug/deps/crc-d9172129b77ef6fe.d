@@ -1,0 +1,12 @@
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/libcrc-d9172129b77ef6fe.rmeta: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc128.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc16.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc32.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc64.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc8.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/table.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/util.rs
+
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/crc-d9172129b77ef6fe.d: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc128.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc16.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc32.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc64.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc8.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/table.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/util.rs
+
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/lib.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc128.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc16.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc32.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc64.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/crc8.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/table.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/crc-3.3.0/src/util.rs:

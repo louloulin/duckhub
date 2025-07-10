@@ -1,0 +1,10 @@
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/libbase16ct-c8ddd3822ff3f798.rmeta: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/lower.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/mixed.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/upper.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/display.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/error.rs
+
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/base16ct-c8ddd3822ff3f798.d: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/lower.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/mixed.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/upper.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/display.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/error.rs
+
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/lib.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/lower.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/mixed.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/upper.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/display.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/base16ct-0.1.1/src/error.rs:

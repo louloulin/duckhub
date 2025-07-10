@@ -1,0 +1,11 @@
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/libxattr-f561e5dd1fac449b.rmeta: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/error.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/sys/mod.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/util.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/sys/linux_macos.rs
+
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/libxattr-f561e5dd1fac449b.rlib: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/error.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/sys/mod.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/util.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/sys/linux_macos.rs
+
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/xattr-f561e5dd1fac449b.d: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/error.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/sys/mod.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/util.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/sys/linux_macos.rs
+
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/lib.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/error.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/sys/mod.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/util.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/xattr-1.5.1/src/sys/linux_macos.rs:

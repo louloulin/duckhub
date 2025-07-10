@@ -1,0 +1,10 @@
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/libhttparse-5a6d426711bb5ca5.rmeta: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/iter.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/macros.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/simd/mod.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/simd/swar.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/simd/neon.rs
+
+/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/httparse-5a6d426711bb5ca5.d: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/iter.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/macros.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/simd/mod.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/simd/swar.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/simd/neon.rs
+
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/lib.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/iter.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/macros.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/simd/mod.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/simd/swar.rs:
+/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/httparse-1.10.1/src/simd/neon.rs:

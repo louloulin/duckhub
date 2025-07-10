@@ -47,7 +47,3 @@ colored = "2.0"
 # Configuration
 config.workspace = true
 dotenvy.workspace = true
-
-# Table formatting
-tabled = "0.15"
-colored = "2.0"
