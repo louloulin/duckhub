@@ -25,9 +25,8 @@ use rig::{
 };
 use serde_json::{json, Value};
 
-// RAG相关导入（暂时禁用）
-// use crate::vector_store::{VectorStore, FinancialKnowledgeBase, VectorStoreConfig, InMemoryVectorStore, SimpleEmbeddingGenerator, RetrievalResult};
-// use crate::rag_agent::{RAGSQLAgent, RAGAnalysisAgent, RAGChatAgent, RAGAgentConfig, RAGQueryRequest, RAGQueryResponse};
+// 基于Rig框架的RAG系统导入
+use crate::rig_rag::{RigRagService, RagConfig, RagQueryRequest, RagQueryResponse, QueryType};
 
 /// Rig AI Agent错误类型
 #[derive(Error, Debug)]
@@ -68,13 +67,8 @@ pub struct RigAIService {
     config: RigAIConfig,
     metrics: RigAIMetrics,
 
-    // RAG功能暂时禁用
-    // /// RAG增强的Agent
-    // rag_sql_agent: Option<RAGSQLAgent>,
-    // rag_analysis_agent: Option<RAGAnalysisAgent>,
-    // rag_chat_agent: Option<RAGChatAgent>,
-    // /// 金融知识库
-    // knowledge_base: Option<Arc<FinancialKnowledgeBase>>,
+    /// RAG服务
+    rag_service: Option<Arc<RigRagService>>,
 }
 
 /// Rig AI配置
@@ -88,11 +82,8 @@ pub struct RigAIConfig {
     pub agent_configs: HashMap<String, AgentConfig>,
     /// 工具配置
     pub tool_configs: ToolConfigs,
-    // RAG功能暂时禁用
-    // /// RAG配置
-    // pub rag_config: RAGAgentConfig,
-    // /// 向量存储配置
-    // pub vector_store_config: VectorStoreConfig,
+    /// RAG配置
+    pub rag_config: RagConfig,
 }
 
 /// 模型配置
@@ -863,11 +854,8 @@ impl RigAIService {
         // 创建推荐Agent
         let recommendation_agent = Self::create_recommendation_agent(&deepseek_client, &config, &toolset);
 
-        // 暂时禁用RAG组件，等基础功能稳定后再启用
-        // let knowledge_base = None;
-        // let rag_sql_agent = None;
-        // let rag_analysis_agent = None;
-        // let rag_chat_agent = None;
+        // 初始化RAG服务
+        let rag_service = Self::initialize_rag_service(&config).await?;
 
         let model_name = config.model_config.primary_model.clone();
 
@@ -882,11 +870,7 @@ impl RigAIService {
             toolset,
             config,
             metrics,
-            // RAG功能暂时禁用
-            // rag_sql_agent,
-            // rag_analysis_agent,
-            // rag_chat_agent,
-            // knowledge_base,
+            rag_service,
         };
 
         info!("Rig AI服务初始化完成，使用DeepSeek模型: {}", model_name);
@@ -983,65 +967,21 @@ impl RigAIService {
         }
     }
 
-    // RAG功能暂时禁用，等基础功能稳定后再启用
-    /*
-    /// 初始化RAG组件
-    async fn initialize_rag_components(
-        sql_agent: &Agent<deepseek::DeepSeekCompletionModel>,
-        analysis_agent: &Agent<deepseek::DeepSeekCompletionModel>,
-        chat_agent: &Agent<deepseek::DeepSeekCompletionModel>,
-        config: &RigAIConfig,
-    ) -> Result<(
-        Option<Arc<FinancialKnowledgeBase>>,
-        Option<RAGSQLAgent>,
-        Option<RAGAnalysisAgent>,
-        Option<RAGChatAgent>,
-    )> {
-        // 创建嵌入生成器
-        let embedding_generator = Arc::new(SimpleEmbeddingGenerator::new(
-            config.vector_store_config.dimension
-        ));
+    /// 初始化RAG服务
+    async fn initialize_rag_service(
+        _config: &RigAIConfig,
+    ) -> Result<Option<Arc<RigRagService>>> {
+        // 暂时返回None，等Rig API问题解决后再实现
+        // 实际实现应该是：
+        // let rag_service = RigRagService::new(
+        //     config.deepseek_api_key.clone(),
+        //     config.rag_config.clone(),
+        //     engine.clone(),
+        // ).await?;
+        // Ok(Some(Arc::new(rag_service)))
 
-        // 创建向量存储
-        let vector_store = Box::new(InMemoryVectorStore::new(
-            config.vector_store_config.clone(),
-            embedding_generator,
-        ));
-
-        // 创建金融知识库
-        let mut knowledge_base = FinancialKnowledgeBase::new(
-            vector_store,
-            config.vector_store_config.clone(),
-        );
-
-        // 初始化知识库
-        knowledge_base.initialize().await
-            .map_err(|e| DuckHubError::internal(e.to_string()))?;
-
-        let knowledge_base = Arc::new(knowledge_base);
-
-        // 创建RAG增强的Agent
-        let rag_sql_agent = Some(RAGSQLAgent::new(
-            sql_agent.clone(),
-            knowledge_base.clone(),
-            config.rag_config.clone(),
-        ));
-
-        let rag_analysis_agent = Some(RAGAnalysisAgent::new(
-            analysis_agent.clone(),
-            knowledge_base.clone(),
-            config.rag_config.clone(),
-        ));
-
-        let rag_chat_agent = Some(RAGChatAgent::new(
-            chat_agent.clone(),
-            knowledge_base.clone(),
-            config.rag_config.clone(),
-        ));
-
-        Ok((Some(knowledge_base), rag_sql_agent, rag_analysis_agent, rag_chat_agent))
+        Ok(None)
     }
-    */
 
     /// 创建工具集
     fn create_toolset(
@@ -1440,9 +1380,7 @@ impl Default for RigAIConfig {
             model_config: ModelConfig::default(),
             agent_configs,
             tool_configs: ToolConfigs::default(),
-            // RAG功能暂时禁用
-            // rag_config: RAGAgentConfig::default(),
-            // vector_store_config: VectorStoreConfig::default(),
+            rag_config: RagConfig::default(),
         }
     }
 }

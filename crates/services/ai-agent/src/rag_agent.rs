@@ -110,7 +110,7 @@ impl RAGSQLAgent {
     
     /// 处理RAG增强的查询
     #[instrument(skip(self, request))]
-    pub async fn process_query(&self, request: RAGQueryRequest) -> Result<RAGQueryResponse, RAGAgentError> {
+    pub async fn process_query(&self, request: RAGQueryRequest) -> Result<RAGQueryResponse> {
         let start_time = std::time::Instant::now();
         
         let mut context = Vec::new();
@@ -151,7 +151,7 @@ impl RAGSQLAgent {
         let answer = self.base_agent
             .prompt(&enhanced_prompt)
             .await
-            .map_err(|e| RAGAgentError::AgentError(e.to_string()))?;
+            .map_err(|e| DuckHubError::internal(e.to_string()))?;
         
         let generation_time_ms = generation_start.elapsed().as_millis() as u64;
         
@@ -166,12 +166,12 @@ impl RAGSQLAgent {
     }
     
     /// 检索相关知识
-    async fn retrieve_relevant_knowledge(&self, query: &str) -> Result<RetrievalResult, RAGAgentError> {
+    async fn retrieve_relevant_knowledge(&self, query: &str) -> Result<RetrievalResult> {
         let max_docs = self.config.max_retrieval_docs;
         self.knowledge_base
             .retrieve_knowledge(query)
             .await
-            .map_err(RAGAgentError::VectorStoreError)
+            .map_err(|e| DuckHubError::internal(e.to_string()))
     }
     
     /// 构建增强的提示词
@@ -220,7 +220,7 @@ impl RAGAnalysisAgent {
     
     /// 处理分析请求
     #[instrument(skip(self, request))]
-    pub async fn analyze(&self, request: RAGQueryRequest) -> Result<RAGQueryResponse, RAGAgentError> {
+    pub async fn analyze(&self, request: RAGQueryRequest) -> Result<RAGQueryResponse> {
         let start_time = std::time::Instant::now();
         
         let mut context = Vec::new();
@@ -256,7 +256,7 @@ impl RAGAnalysisAgent {
         let answer = self.base_agent
             .prompt(&analysis_prompt)
             .await
-            .map_err(|e| RAGAgentError::AgentError(e.to_string()))?;
+            .map_err(|e| DuckHubError::internal(e.to_string()))?;
         
         let generation_time_ms = generation_start.elapsed().as_millis() as u64;
         
@@ -317,7 +317,7 @@ impl RAGChatAgent {
     
     /// 处理聊天消息
     #[instrument(skip(self, request))]
-    pub async fn chat(&mut self, request: RAGQueryRequest) -> Result<RAGQueryResponse, RAGAgentError> {
+    pub async fn chat(&mut self, request: RAGQueryRequest) -> Result<RAGQueryResponse> {
         let mut context = Vec::new();
         let mut retrieved_docs = Vec::new();
         let mut retrieval_time_ms = 0;
@@ -351,7 +351,7 @@ impl RAGChatAgent {
         let answer = self.base_agent
             .prompt(&chat_prompt)
             .await
-            .map_err(|e| RAGAgentError::AgentError(e.to_string()))?;
+            .map_err(|e| DuckHubError::internal(e.to_string()))?;
         
         let generation_time_ms = generation_start.elapsed().as_millis() as u64;
         

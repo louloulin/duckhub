@@ -123,4 +123,67 @@ mod tests {
         let serialized = serde_json::to_string(&response_type).unwrap();
         assert!(serialized.contains("Error"));
     }
+
+    #[tokio::test]
+    async fn test_rag_config_creation() {
+        use crate::rig_rag::RagConfig;
+
+        // 测试默认配置
+        let config = RagConfig::default();
+        assert_eq!(config.embedding_model, "text-embedding-ada-002");
+        assert_eq!(config.completion_model, "gpt-4");
+        assert_eq!(config.default_max_docs, 3);
+        assert_eq!(config.similarity_threshold, 0.7);
+        assert_eq!(config.context_window_size, 4000);
+    }
+
+    #[tokio::test]
+    async fn test_rag_query_types() {
+        use crate::rig_rag::{RagQueryRequest, QueryType};
+
+        // 测试SQL生成查询
+        let sql_request = RagQueryRequest {
+            query: "SELECT * FROM users".to_string(),
+            query_type: QueryType::SqlGeneration,
+            max_docs: Some(5),
+            enable_rag: true,
+            context: None,
+        };
+
+        assert_eq!(sql_request.query_type, QueryType::SqlGeneration);
+        assert_eq!(sql_request.max_docs, Some(5));
+        assert!(sql_request.enable_rag);
+
+        // 测试数据分析查询
+        let analysis_request = RagQueryRequest {
+            query: "分析用户行为趋势".to_string(),
+            query_type: QueryType::DataAnalysis,
+            max_docs: None,
+            enable_rag: true,
+            context: None,
+        };
+
+        assert_eq!(analysis_request.query_type, QueryType::DataAnalysis);
+        assert_eq!(analysis_request.max_docs, None);
+    }
+
+    #[tokio::test]
+    async fn test_financial_document_creation() {
+        use crate::rig_rag::{FinancialDocument, DocumentType};
+        use uuid::Uuid;
+
+        let doc = FinancialDocument {
+            id: Uuid::new_v4().to_string(),
+            title: "测试文档".to_string(),
+            content: "这是一个测试文档的内容".to_string(),
+            doc_type: DocumentType::SqlPattern,
+            created_at: chrono::Utc::now(),
+            metadata: serde_json::json!({"category": "test"}),
+        };
+
+        assert_eq!(doc.title, "测试文档");
+        assert_eq!(doc.content, "这是一个测试文档的内容");
+        assert_eq!(doc.doc_type, DocumentType::SqlPattern);
+        assert!(doc.metadata.is_object());
+    }
 }

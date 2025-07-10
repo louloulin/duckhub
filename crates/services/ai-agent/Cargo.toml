@@ -10,11 +10,11 @@ duckhub-common = { path = "../../core/common" }
 duckhub-database = { path = "../../core/database" }
 duckhub-query-analytics = { path = "../query-analytics" }
 
-# Rig AI framework
+# Rig AI framework with RAG support
 rig-core = "0.14.0"
 
-# Vector storage for RAG (simplified implementation)
-# Using simple in-memory vector storage for now
+# Vector storage for RAG using Rig's built-in support
+# In-memory vector store for development, can be replaced with MongoDB/LanceDB for production
 
 # Async runtime
 tokio = { version = "1.0", features = ["full"] }

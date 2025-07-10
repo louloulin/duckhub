@@ -18,8 +18,9 @@ pub mod chat;
 
 // 基于Rig框架的AI Agent实现
 pub mod rig_agent;
-// RAG功能暂时禁用
-// pub mod vector_store;
+// 基于Rig框架的RAG系统实现
+pub mod rig_rag;
+// 传统RAG功能（暂时禁用，等迁移完成后删除）
 // pub mod rag_agent;
 
 // 测试模块
@@ -37,9 +38,8 @@ pub use chat::*;
 
 // 导出Rig相关组件
 pub use rig_agent::*;
-// RAG功能暂时禁用
-// pub use vector_store::*;
-// pub use rag_agent::*;
+// 导出新的RAG系统
+pub use rig_rag::*;
 
 /// AI Agent服务
 pub struct AIAgentService {
