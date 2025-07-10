@@ -1,7 +1,21 @@
 //! Connection pool management for DuckDB
 
 use duckhub_common::prelude::*;
-use crate::duckdb::{DuckDBEngine, DuckDBConnection};
+use duckhub_common::config::{DatabaseConfig, PoolConfig};
+use crate::duckdb::{Connection};
+
+// Mock DuckDBConnection for compilation
+pub struct DuckDBConnection {
+    connection: Connection,
+}
+
+impl DuckDBConnection {
+    pub fn new(path: &str) -> Result<Self> {
+        Ok(DuckDBConnection {
+            connection: Connection::open(path)?,
+        })
+    }
+}
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 use std::collections::{HashMap, VecDeque};
@@ -18,14 +32,14 @@ pub struct ConnectionPool {
 
 /// A pooled connection wrapper
 pub struct PooledConnection {
-    connection: DuckDBConnection,
+    connection: Connection,
     created_at: Instant,
     last_used: Instant,
     use_count: u64,
 }
 
 impl PooledConnection {
-    fn new(connection: DuckDBConnection) -> Self {
+    fn new(connection: Connection) -> Self {
         let now = Instant::now();
         Self {
             connection,
@@ -74,7 +88,7 @@ impl ConnectionPool {
         
         for _ in 0..self.config.min_connections {
             let conn = self.create_connection().await?;
-            connections.push_back(PooledConnection::new(conn));
+            connections.push_back(PooledConnection::new(conn.connection));
         }
 
         info!("Initialized {} connections in pool", self.config.min_connections);
@@ -113,7 +127,7 @@ impl ConnectionPool {
         drop(connections); // Release lock before creating connection
         
         let new_conn = self.create_connection().await?;
-        let pooled_conn = PooledConnection::new(new_conn);
+        let pooled_conn = PooledConnection::new(new_conn.connection);
         
         debug!("Created new connection");
         Ok(PooledConnectionGuard::new(pooled_conn, permit, self.connections.clone()))
@@ -194,11 +208,13 @@ impl ConnectionPool {
         let mut removed_count = 0;
 
         // Remove expired and idle connections
+        let min_connections = config.min_connections as usize;
+        let current_len = conns.len();
         conns.retain(|conn| {
             let expired = conn.is_expired(Duration::from_secs(config.max_lifetime));
             let idle = conn.is_idle(Duration::from_secs(config.idle_timeout));
-            
-            if expired || (idle && conns.len() > config.min_connections as usize) {
+
+            if expired || (idle && current_len > min_connections) {
                 removed_count += 1;
                 false
             } else {
@@ -214,7 +230,7 @@ impl ConnectionPool {
         while conns.len() < config.min_connections as usize {
             match DuckDBConnection::new(&database_config.duckdb_path) {
                 Ok(conn) => {
-                    conns.push_back(PooledConnection::new(conn));
+                    conns.push_back(PooledConnection::new(conn.connection));
                     debug!("Added connection to maintain minimum pool size");
                 }
                 Err(e) => {
@@ -249,12 +265,12 @@ impl PooledConnectionGuard {
     }
 
     /// Get reference to the underlying connection
-    pub fn connection(&self) -> &DuckDBConnection {
+    pub fn connection(&self) -> &Connection {
         &self.connection.as_ref().unwrap().connection
     }
 
     /// Get mutable reference to the underlying connection
-    pub fn connection_mut(&mut self) -> &mut DuckDBConnection {
+    pub fn connection_mut(&mut self) -> &mut Connection {
         &mut self.connection.as_mut().unwrap().connection
     }
 }

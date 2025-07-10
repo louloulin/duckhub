@@ -8,6 +8,7 @@
 //! - Caching layer
 
 pub mod duckdb;
+mod mock_duckdb;
 pub mod pool;
 pub mod query;
 pub mod lake;
@@ -23,7 +24,7 @@ pub use pool::{ConnectionPool, PoolManager};
 pub use query::{QueryExecutor, QueryOptimizer, QueryCache};
 pub use lake::{DataLakeManager, ObjectStorageProvider};
 pub use ducklake::{DuckLakeManager, DuckLakeConfig, DuckLakeDatabase, DuckLakeSnapshot};
-pub use schema::{SchemaManager, SchemaRegistry};
+pub use schema::{SchemaManager};
 pub use cache::{QueryCacheImpl, CacheManager};
 pub use extensions::{ExtensionManager, DataLakeFeature, S3Config, AzureConfig};
 

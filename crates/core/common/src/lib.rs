@@ -10,8 +10,10 @@ pub mod config;
 
 // Re-export commonly used types
 pub use error::{DuckHubError, Result};
-pub use types::*;
 pub use traits::*;
+// Note: config and types both export some common types, so we import them selectively
+pub use config::{DatabaseConfig, PoolConfig, ObjectStorageConfig};
+pub use types::{Query, QueryResult, DataType, Schema};
 
 /// Common prelude for DuckHub crates
 pub mod prelude {

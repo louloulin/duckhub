@@ -112,7 +112,7 @@ impl Cache for QueryCacheImpl {
         let full_key = self.full_key(key);
         let mut conn = self.connection.lock().await;
 
-        match conn.expire::<_, ()>(&full_key, ttl as usize).await {
+        match conn.expire::<_, ()>(&full_key, ttl as i64).await {
             Ok(_) => {
                 debug!("Set TTL for key: {} ({}s)", key, ttl);
                 Ok(())

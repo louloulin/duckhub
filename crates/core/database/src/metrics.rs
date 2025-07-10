@@ -159,14 +159,14 @@ impl DatabaseMetrics {
     pub fn record_query(&self, duration: Duration, result: &QueryResult) {
         self.query_total.inc();
         self.query_duration.observe(duration.as_secs_f64());
-        self.rows_returned.inc_by(result.row_count);
+        self.rows_returned.inc_by(result.row_count as f64);
         
         if let Some(bytes) = result.metadata.bytes_returned {
-            self.bytes_returned.inc_by(bytes);
+            self.bytes_returned.inc_by(bytes as f64);
         }
         
         if let Some(bytes) = result.metadata.bytes_scanned {
-            self.bytes_scanned.inc_by(bytes);
+            self.bytes_scanned.inc_by(bytes as f64);
         }
         
         debug!("Recorded query metrics: duration={}ms, rows={}", 
@@ -411,6 +411,7 @@ impl MetricsReporter {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+    use duckhub_common::utils::{generate_id, now};
 
     #[test]
     fn test_metrics_creation() {

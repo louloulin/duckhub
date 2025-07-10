@@ -45,6 +45,9 @@ config.workspace = true
 # Cache
 redis.workspace = true
 
+# Monitoring
+prometheus.workspace = true
+
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile.workspace = true

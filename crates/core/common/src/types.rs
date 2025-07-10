@@ -3,6 +3,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use crate::config::DatabaseConfig;
 use uuid::Uuid;
 
 /// Data source configuration
@@ -35,14 +36,7 @@ pub enum DataSourceType {
     ObjectStorage(ObjectStorageConfig),
 }
 
-/// Database configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseConfig {
-    pub connection_string: String,
-    pub driver: DatabaseDriver,
-    pub pool_size: Option<u32>,
-    pub timeout_seconds: Option<u64>,
-}
+// DatabaseConfig moved to config.rs to avoid duplication
 
 /// Supported database drivers
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -178,7 +172,7 @@ pub struct Schema {
 }
 
 /// Field definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Field {
     pub name: String,
     pub data_type: DataType,
@@ -188,7 +182,7 @@ pub struct Field {
 }
 
 /// Data types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DataType {
     Boolean,
     Int8,

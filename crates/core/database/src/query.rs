@@ -410,6 +410,7 @@ impl QueryCache {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+    use duckhub_common::utils::{generate_id, now};
 
     #[test]
     fn test_query_optimizer() {

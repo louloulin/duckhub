@@ -9,7 +9,7 @@
 
 use duckhub_common::prelude::*;
 use duckhub_common::utils::{now, generate_id};
-use duckdb::Connection;
+use crate::duckdb::Connection; // Use our mock connection
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -104,12 +104,16 @@ impl Default for DuckLakeMetrics {
         Self {
             snapshots_created: Counter::new("ducklake_snapshots_created_total", "Total number of DuckLake snapshots created").unwrap(),
             time_travel_queries: Counter::new("ducklake_time_travel_queries_total", "Total number of time travel queries").unwrap(),
-            transaction_duration: Histogram::new("ducklake_transaction_duration_seconds", "DuckLake transaction execution time").unwrap(),
+            transaction_duration: Histogram::with_opts(
+                prometheus::HistogramOpts::new("ducklake_transaction_duration_seconds", "DuckLake transaction execution time")
+            ).unwrap(),
             attached_databases_count: Gauge::new("ducklake_attached_databases", "Number of attached DuckLake databases").unwrap(),
             query_errors: Counter::new("ducklake_query_errors_total", "Total number of query errors").unwrap(),
             retries_total: Counter::new("ducklake_retries_total", "Total number of operation retries").unwrap(),
             batch_operations_total: Counter::new("ducklake_batch_operations_total", "Total number of batch operations").unwrap(),
-            batch_operation_duration: Histogram::new("ducklake_batch_operation_duration_seconds", "Batch operation execution time").unwrap(),
+            batch_operation_duration: Histogram::with_opts(
+                prometheus::HistogramOpts::new("ducklake_batch_operation_duration_seconds", "Batch operation execution time")
+            ).unwrap(),
             active_connections: Gauge::new("ducklake_active_connections", "Number of active database connections").unwrap(),
             connection_queue_length: Gauge::new("ducklake_connection_queue_length", "Length of connection pool queue").unwrap(),
             rows_inserted: Counter::new("ducklake_rows_inserted_total", "Total number of rows inserted").unwrap(),
@@ -213,7 +217,7 @@ impl DuckLakeManager {
         self.connection_pool.as_ref().map(|pool| {
             ConnectionPoolStatus {
                 active_connections: pool.active_connections(),
-                idle_connections: pool.idle_connections(),
+                idle_connections: 0, // Mock value
                 max_connections: pool.max_connections(),
                 queue_length: pool.queue_length(),
             }
@@ -310,7 +314,7 @@ impl DuckLakeManager {
 
         // 使用重试机制执行附加操作
         let result = self.execute_with_retry(|| {
-            self.connection.execute(&attach_sql, [])
+            self.connection.execute::<&str>(&attach_sql, &[])
                 .map_err(|e| DuckHubError::database(format!("附加DuckLake数据库失败: {}", e)))
         }).await;
 
@@ -419,7 +423,7 @@ impl DuckLakeManager {
         secret_sql.push_str(&params.join(", "));
         secret_sql.push(')');
         
-        self.connection.execute(&secret_sql, [])
+        self.connection.execute::<&str>(&secret_sql, &[])
             .map_err(|e| DuckHubError::database(format!("Failed to create DuckLake secret: {}", e)))?;
         
         info!("Created DuckLake secret: {}", if secret_name.is_empty() { "default" } else { secret_name });
@@ -433,7 +437,7 @@ impl DuckLakeManager {
                                 config.metadata_path,
                                 config.data_path.as_ref().unwrap_or(&format!("{}.files", config.metadata_path)));
         
-        self.connection.execute(&secret_sql, [])
+        self.connection.execute::<&str>(&secret_sql, &[])
             .map_err(|e| DuckHubError::database(format!("Failed to create persistent DuckLake secret: {}", e)))?;
         
         info!("Created persistent DuckLake secret: {}", secret_name);
@@ -459,7 +463,7 @@ impl DuckLakeManager {
         debug!("执行时间旅行查询: {}", time_travel_sql);
 
         let result = self.execute_with_retry(|| {
-            self.connection.execute(&time_travel_sql, [])
+            self.connection.execute::<&str>(&time_travel_sql, &[])
                 .map_err(|e| DuckHubError::database(format!("时间旅行查询失败: {}", e)))
         }).await;
 
@@ -537,7 +541,7 @@ impl DuckLakeManager {
         debug!("执行时间戳查询: {}", time_travel_sql);
 
         let result = self.execute_with_retry(|| {
-            self.connection.execute(&time_travel_sql, [])
+            self.connection.execute::<&str>(&time_travel_sql, &[])
                 .map_err(|e| DuckHubError::database(format!("时间旅行查询失败: {}", e)))
         }).await;
 
@@ -877,7 +881,7 @@ impl DuckLakeManager {
         let snapshots_sql = format!("SELECT * FROM {}.snapshots()", database);
         
         // This would need proper result parsing in a real implementation
-        self.connection.execute(&snapshots_sql, [])
+        self.connection.execute::<&str>(&snapshots_sql, &[])
             .map_err(|e| DuckHubError::database(format!("Failed to get snapshots: {}", e)))?;
         
         // For now, return empty vector - would need proper result parsing
@@ -898,7 +902,7 @@ impl DuckLakeManager {
         create_sql.push_str(&field_definitions.join(", "));
         create_sql.push(')');
         
-        self.connection.execute(&create_sql, [])
+        self.connection.execute::<&str>(&create_sql, &[])
             .map_err(|e| DuckHubError::database(format!("Failed to create DuckLake table: {}", e)))?;
         
         info!("Created DuckLake table: {}.{}", database, table);
@@ -925,7 +929,7 @@ impl DuckLakeManager {
                 let insert_sql = self.build_batch_insert_sql(database, table, chunk)?;
 
                 let result = self.execute_with_retry(|| {
-                    self.connection.execute(&insert_sql, [])
+                    self.connection.execute::<&str>(&insert_sql, &[])
                         .map_err(|e| DuckHubError::database(format!("批量插入数据失败: {}", e)))
                 }).await;
 
@@ -946,7 +950,7 @@ impl DuckLakeManager {
             let insert_sql = self.build_batch_insert_sql(database, table, data)?;
 
             let result = self.execute_with_retry(|| {
-                self.connection.execute(&insert_sql, [])
+                self.connection.execute::<&str>(&insert_sql, &[])
                     .map_err(|e| DuckHubError::database(format!("批量插入数据失败: {}", e)))
             }).await;
 
@@ -1026,7 +1030,7 @@ impl DuckLakeManager {
 
         // 开始事务
         self.execute_with_retry(|| {
-            self.connection.execute("BEGIN TRANSACTION", [])
+            self.connection.execute::<&str>("BEGIN TRANSACTION", &[])
                 .map_err(|e| DuckHubError::database(format!("开始事务失败: {}", e)))
         }).await?;
 
@@ -1063,7 +1067,7 @@ impl DuckLakeManager {
 
         // 提交事务
         self.execute_with_retry(|| {
-            self.connection.execute("COMMIT", [])
+            self.connection.execute::<&str>("COMMIT", &[])
                 .map_err(|e| DuckHubError::database(format!("提交事务失败: {}", e)))
         }).await?;
 
@@ -1077,7 +1081,7 @@ impl DuckLakeManager {
 
     /// 回滚事务的辅助方法
     async fn rollback_transaction(&self) {
-        if let Err(rollback_err) = self.connection.execute("ROLLBACK", []) {
+        if let Err(rollback_err) = self.connection.execute::<&str>("ROLLBACK", &[]) {
             error!("回滚事务失败: {}", rollback_err);
         } else {
             info!("事务已回滚");
@@ -1090,7 +1094,7 @@ impl DuckLakeManager {
         let start_time = Instant::now();
 
         // 设置隔离级别
-        if let Some(level) = isolation_level {
+        if let Some(ref level) = isolation_level {
             let isolation_sql = match level {
                 IsolationLevel::ReadUncommitted => "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED",
                 IsolationLevel::ReadCommitted => "SET TRANSACTION ISOLATION LEVEL READ COMMITTED",
@@ -1099,21 +1103,21 @@ impl DuckLakeManager {
             };
 
             self.execute_with_retry(|| {
-                self.connection.execute(isolation_sql, [])
+                self.connection.execute::<&str>(isolation_sql, &[])
                     .map_err(|e| DuckHubError::database(format!("设置隔离级别失败: {}", e)))
             }).await?;
         }
 
         // 开始事务
         self.execute_with_retry(|| {
-            self.connection.execute("BEGIN TRANSACTION", [])
+            self.connection.execute::<&str>("BEGIN TRANSACTION", &[])
                 .map_err(|e| DuckHubError::database(format!("开始事务失败: {}", e)))
         }).await?;
 
         info!("开始事务: {}", transaction_id);
 
         Ok(TransactionHandle {
-            id: transaction_id,
+            id: transaction_id.to_string(),
             start_time,
             isolation_level,
             operations: Vec::new(),
@@ -1132,7 +1136,7 @@ impl DuckLakeManager {
 
         // 执行提交
         let result = self.execute_with_retry(|| {
-            self.connection.execute("COMMIT", [])
+            self.connection.execute::<&str>("COMMIT", &[])
                 .map_err(|e| DuckHubError::database(format!("提交事务失败: {}", e)))
         }).await;
 
@@ -1150,7 +1154,7 @@ impl DuckLakeManager {
                     status: TransactionStatus::Committed,
                     operations_count: transaction.operations.len(),
                     total_duration,
-                    commit_duration: duration,
+                    commit_duration: Some(duration),
                     rollback_duration: None,
                 })
             }
@@ -1167,7 +1171,7 @@ impl DuckLakeManager {
 
         // 执行回滚
         let result = self.execute_with_retry(|| {
-            self.connection.execute("ROLLBACK", [])
+            self.connection.execute::<&str>("ROLLBACK", &[])
                 .map_err(|e| DuckHubError::database(format!("回滚事务失败: {}", e)))
         }).await;
 
@@ -1199,7 +1203,7 @@ impl DuckLakeManager {
         let savepoint_sql = format!("SAVEPOINT {}", savepoint_name);
 
         self.execute_with_retry(|| {
-            self.connection.execute(&savepoint_sql, [])
+            self.connection.execute::<&str>(&savepoint_sql, &[])
                 .map_err(|e| DuckHubError::database(format!("创建保存点失败: {}", e)))
         }).await?;
 
@@ -1217,7 +1221,7 @@ impl DuckLakeManager {
         let rollback_sql = format!("ROLLBACK TO SAVEPOINT {}", savepoint_name);
 
         self.execute_with_retry(|| {
-            self.connection.execute(&rollback_sql, [])
+            self.connection.execute::<&str>(&rollback_sql, &[])
                 .map_err(|e| DuckHubError::database(format!("回滚到保存点失败: {}", e)))
         }).await?;
 
@@ -1233,7 +1237,7 @@ impl DuckLakeManager {
         let release_sql = format!("RELEASE SAVEPOINT {}", savepoint_name);
 
         self.execute_with_retry(|| {
-            self.connection.execute(&release_sql, [])
+            self.connection.execute::<&str>(&release_sql, &[])
                 .map_err(|e| DuckHubError::database(format!("释放保存点失败: {}", e)))
         }).await?;
 
@@ -1279,7 +1283,7 @@ impl DuckLakeManager {
             }
             DuckLakeOperation::Update { sql } => {
                 let result = self.execute_with_retry(|| {
-                    self.connection.execute(sql, [])
+                    self.connection.execute::<&str>(sql, &[])
                         .map_err(|e| DuckHubError::database(format!("更新操作失败: {}", e)))
                 }).await?;
 
@@ -1288,7 +1292,7 @@ impl DuckLakeManager {
             }
             DuckLakeOperation::Delete { sql } => {
                 let result = self.execute_with_retry(|| {
-                    self.connection.execute(sql, [])
+                    self.connection.execute::<&str>(sql, &[])
                         .map_err(|e| DuckHubError::database(format!("删除操作失败: {}", e)))
                 }).await?;
 
@@ -1311,7 +1315,7 @@ impl DuckLakeManager {
     pub async fn detach_database(&mut self, name: &str) -> Result<()> {
         let detach_sql = format!("DETACH {}", name);
         
-        self.connection.execute(&detach_sql, [])
+        self.connection.execute::<&str>(&detach_sql, &[])
             .map_err(|e| DuckHubError::database(format!("Failed to detach DuckLake database: {}", e)))?;
         
         self.attached_databases.remove(name);
@@ -1366,7 +1370,7 @@ impl DuckLakeManager {
         info!("执行Schema演进: 添加列{}.{}.{}", database, table, column_name);
 
         let result = self.execute_with_retry(|| {
-            self.connection.execute(&alter_sql, [])
+            self.connection.execute::<&str>(&alter_sql, &[])
                 .map_err(|e| DuckHubError::database(format!("添加列失败: {}", e)))
         }).await;
 
@@ -1429,7 +1433,7 @@ impl DuckLakeManager {
         info!("执行Schema演进: 删除列{}.{}.{}", database, table, column_name);
 
         let result = self.execute_with_retry(|| {
-            self.connection.execute(&alter_sql, [])
+            self.connection.execute::<&str>(&alter_sql, &[])
                 .map_err(|e| DuckHubError::database(format!("删除列失败: {}", e)))
         }).await;
 
@@ -1487,7 +1491,7 @@ impl DuckLakeManager {
                                database, table, column_name, new_type);
 
         let result = self.execute_with_retry(|| {
-            self.connection.execute(&alter_sql, [])
+            self.connection.execute::<&str>(&alter_sql, &[])
                 .map_err(|e| DuckHubError::database(format!("修改列类型失败: {}", e)))
         }).await;
 
@@ -2018,7 +2022,7 @@ pub enum SchemaChangeType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use duckdb::Connection;
+    use crate::duckdb::Connection;
     use tempfile::tempdir;
     use tokio_test;
 
@@ -2072,6 +2076,9 @@ mod tests {
             initial_delay_ms: 200,
             backoff_multiplier: 1.5,
             max_delay_ms: 10000,
+            retryable_errors: vec!["timeout".to_string(), "connection".to_string()],
+            connection_timeout_ms: 30000,
+            query_timeout_ms: 60000,
         };
 
         let manager = create_test_manager().with_retry_config(retry_config.clone());

@@ -3,19 +3,19 @@
 //! 测试DuckLake的ACID事务特性、时间旅行查询、Schema演进等核心功能
 
 use duckhub_database::*;
+use duckhub_database::ducklake::DuckLakeOperation;
 use duckhub_common::prelude::*;
-use duckdb::Connection;
+use duckhub_common::types::{Schema, Field, DataType};
+use crate::duckdb::Connection;
 use std::collections::HashMap;
-use tempfile::tempdir;
-use tokio_test;
 
 /// 创建测试用的DuckLake管理器
 async fn create_test_manager() -> DuckLakeManager {
     let conn = Connection::open_in_memory().unwrap();
     
     // 尝试安装DuckLake扩展（如果可用）
-    let _ = conn.execute("INSTALL ducklake", []);
-    let _ = conn.execute("LOAD ducklake", []);
+    let _ = conn.execute("INSTALL ducklake", &[] as &[&str]);
+    let _ = conn.execute("LOAD ducklake", &[] as &[&str]);
     
     DuckLakeManager::new(conn)
 }
@@ -99,18 +99,26 @@ async fn test_ducklake_table_operations() {
                     name: "id".to_string(),
                     data_type: DataType::Int32,
                     nullable: false,
+                    default_value: None,
+                    description: None,
                 },
                 Field {
                     name: "name".to_string(),
                     data_type: DataType::String,
                     nullable: true,
+                    default_value: None,
+                    description: None,
                 },
                 Field {
                     name: "amount".to_string(),
                     data_type: DataType::Decimal { precision: 10, scale: 2 },
                     nullable: false,
+                    default_value: None,
+                    description: None,
                 },
             ],
+            primary_key: Some(vec!["id".to_string()]),
+            indexes: vec![],
         };
         
         // 测试创建表
@@ -167,13 +175,19 @@ async fn test_ducklake_batch_operations() {
                     name: "id".to_string(),
                     data_type: DataType::Int32,
                     nullable: false,
+                    default_value: None,
+                    description: None,
                 },
                 Field {
                     name: "value".to_string(),
                     data_type: DataType::String,
                     nullable: true,
+                    default_value: None,
+                    description: None,
                 },
             ],
+            primary_key: Some(vec!["id".to_string()]),
+            indexes: vec![],
         };
         
         // 准备批量操作

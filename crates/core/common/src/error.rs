@@ -216,3 +216,12 @@ impl From<::redis::RedisError> for DuckHubError {
         }
     }
 }
+
+/// Convert from Prometheus errors
+impl From<::prometheus::Error> for DuckHubError {
+    fn from(err: ::prometheus::Error) -> Self {
+        Self::Internal {
+            message: format!("Prometheus error: {}", err),
+        }
+    }
+}
