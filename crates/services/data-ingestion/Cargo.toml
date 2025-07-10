@@ -30,5 +30,20 @@ thiserror.workspace = true
 # Logging
 tracing.workspace = true
 
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID generation
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Validation
+validator = { version = "0.16", features = ["derive"] }
+
+# Metrics
+prometheus = "0.13"
+
 [dev-dependencies]
 tempfile.workspace = true
