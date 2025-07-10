@@ -224,6 +224,21 @@ impl DuckLakeManager {
         })
     }
 
+    /// Get attached databases count (for testing)
+    pub fn attached_databases_count(&self) -> usize {
+        self.attached_databases.len()
+    }
+
+    /// Check if database is attached (for testing)
+    pub fn is_database_attached(&self, name: &str) -> bool {
+        self.attached_databases.contains_key(name)
+    }
+
+    /// Get retry configuration (for testing)
+    pub fn get_retry_config(&self) -> &RetryConfig {
+        &self.retry_config
+    }
+
     /// 检查错误是否可重试
     fn is_retryable_error(&self, error: &DuckHubError) -> bool {
         let error_msg = error.to_string().to_lowercase();

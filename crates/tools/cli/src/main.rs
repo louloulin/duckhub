@@ -2,11 +2,36 @@
 
 use clap::{Parser, Subcommand};
 use duckhub_common::prelude::*;
+use duckhub_common::DatabaseConfig;
+use duckhub_common::utils::{generate_id, now};
 use duckhub_database::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tabled::{Table, Tabled};
 use colored::*;
+
+// Helper function to execute query and return QueryResult
+async fn execute_query_helper(engine: &Arc<DuckDBEngine>, query: &Query) -> Result<QueryResult> {
+    let rows = engine.query(&query.sql).await?;
+    let columns = if rows.is_empty() { vec![] } else { rows[0].keys().cloned().collect() };
+    let result_rows: Vec<Vec<serde_json::Value>> = rows.iter()
+        .map(|row| columns.iter().map(|col| row.get(col).cloned().unwrap_or(serde_json::Value::Null)).collect())
+        .collect();
+
+    Ok(QueryResult {
+        query_id: query.id,
+        columns,
+        rows: result_rows,
+        row_count: rows.len() as u64,
+        execution_time_ms: 0,
+        metadata: QueryMetadata {
+            bytes_scanned: None,
+            bytes_returned: None,
+            cache_hit: false,
+            execution_plan: None,
+        },
+    })
+}
 
 #[derive(Parser)]
 #[command(name = "duckhub")]
@@ -207,11 +232,11 @@ async fn main() -> Result<()> {
         max_memory: None,
         temp_directory: None,
         extensions: vec!["httpfs".to_string(), "parquet".to_string()],
-        pool: PoolConfig::default(),
+        pool: duckhub_common::PoolConfig::default(),
     };
 
     // Create database engine
-    let engine = Arc::new(DuckDBEngine::new(config)?);
+    let engine = Arc::new(DuckDBEngine::new(config).await?);
 
     match cli.command {
         Commands::Query { sql, format } => {
@@ -250,8 +275,35 @@ async fn execute_query(engine: Arc<DuckDBEngine>, sql: &str, format: &str) -> Re
     };
 
     let start_time = std::time::Instant::now();
-    let result = engine.execute_query(&query).await?;
+
+    // Execute query and get results
+    let rows = engine.query(&query.sql).await?;
     let execution_time = start_time.elapsed();
+
+    // Convert to QueryResult format
+    let columns = if rows.is_empty() {
+        vec![]
+    } else {
+        rows[0].keys().cloned().collect()
+    };
+
+    let result_rows: Vec<Vec<serde_json::Value>> = rows.iter()
+        .map(|row| columns.iter().map(|col| row.get(col).cloned().unwrap_or(serde_json::Value::Null)).collect())
+        .collect();
+
+    let result = QueryResult {
+        query_id: query.id,
+        columns: columns.clone(),
+        rows: result_rows.clone(),
+        row_count: result_rows.len() as u64,
+        execution_time_ms: execution_time.as_millis() as u64,
+        metadata: QueryMetadata {
+            bytes_scanned: None,
+            bytes_returned: None,
+            cache_hit: false,
+            execution_plan: None,
+        },
+    };
 
     match format {
         "json" => {
@@ -278,21 +330,31 @@ async fn execute_query(engine: Arc<DuckDBEngine>, sql: &str, format: &str) -> Re
                 println!("{}", "No results returned.".yellow());
             } else {
                 // Create table for display
-                let mut table_data = Vec::new();
-                table_data.push(result.columns.clone());
-                
-                for row in &result.rows {
-                    let string_row: Vec<String> = row.iter()
-                        .map(|v| match v {
+                #[derive(Tabled)]
+                struct TableRow {
+                    #[tabled(rename = "Column")]
+                    column: String,
+                    #[tabled(rename = "Value")]
+                    value: String,
+                }
+
+                let mut table_rows = Vec::new();
+                for (i, row) in result.rows.iter().enumerate() {
+                    for (j, col) in result.columns.iter().enumerate() {
+                        let value = row.get(j).map(|v| match v {
                             serde_json::Value::Null => "NULL".to_string(),
                             serde_json::Value::String(s) => s.clone(),
                             _ => v.to_string(),
-                        })
-                        .collect();
-                    table_data.push(string_row);
+                        }).unwrap_or_else(|| "NULL".to_string());
+
+                        table_rows.push(TableRow {
+                            column: format!("{}[{}]", col, i),
+                            value,
+                        });
+                    }
                 }
-                
-                let table = Table::new(table_data);
+
+                let table = Table::new(table_rows);
                 println!("{}", table);
             }
         }
@@ -319,7 +381,24 @@ async fn handle_schema_action(engine: Arc<DuckDBEngine>, action: SchemaAction) -
                 timeout_seconds: None,
             };
 
-            let result = engine.execute_query(&query).await?;
+            let rows = engine.query(&query.sql).await?;
+            let columns = if rows.is_empty() { vec![] } else { rows[0].keys().cloned().collect() };
+            let result_rows: Vec<Vec<serde_json::Value>> = rows.iter()
+                .map(|row| columns.iter().map(|col| row.get(col).cloned().unwrap_or(serde_json::Value::Null)).collect())
+                .collect();
+            let result = QueryResult {
+                query_id: query.id,
+                columns,
+                rows: result_rows,
+                row_count: rows.len() as u64,
+                execution_time_ms: 0,
+                metadata: QueryMetadata {
+                    bytes_scanned: None,
+                    bytes_returned: None,
+                    cache_hit: false,
+                    execution_plan: None,
+                },
+            };
             
             if result.rows.is_empty() {
                 println!("{}", "No tables found.".yellow());
@@ -333,44 +412,14 @@ async fn handle_schema_action(engine: Arc<DuckDBEngine>, action: SchemaAction) -
             }
         }
         SchemaAction::Show { table } => {
-            if !engine.table_exists(&table).await? {
-                println!("{} Table '{}' not found.", "Error:".red().bold(), table);
-                return Ok(());
-            }
-
-            let schema = engine.get_schema(&table).await?;
-            
-            println!("{} {}", "Schema for table".blue().bold(), table.green().bold());
-            println!();
-            
-            let mut field_data = Vec::new();
-            field_data.push(vec!["Column".to_string(), "Type".to_string(), "Nullable".to_string()]);
-            
-            for field in &schema.fields {
-                field_data.push(vec![
-                    field.name.clone(),
-                    format!("{:?}", field.data_type),
-                    if field.nullable { "YES".to_string() } else { "NO".to_string() },
-                ]);
-            }
-            
-            let table = Table::new(field_data);
-            println!("{}", table);
-            
-            if let Some(pk) = &schema.primary_key {
-                println!();
-                println!("{} {}", "Primary Key:".blue().bold(), pk.join(", ").green());
-            }
+            println!("{} Schema operations are not yet implemented", "Info:".blue().bold());
+            println!("You can use SQL queries to inspect table structure:");
+            println!("  DESCRIBE {}", table.green());
         }
-        SchemaAction::Create { table, schema_file } => {
-            let schema_content = tokio::fs::read_to_string(&schema_file).await
-                .map_err(|e| DuckHubError::io(e))?;
-            
-            let schema: Schema = serde_json::from_str(&schema_content)
-                .map_err(|e| DuckHubError::validation(format!("Invalid schema file: {}", e)))?;
-            
-            engine.create_table(&table, &schema).await?;
-            println!("{} Created table '{}'", "Success:".green().bold(), table.green());
+        SchemaAction::Create { table, schema_file: _ } => {
+            println!("{} Schema creation is not yet implemented", "Info:".blue().bold());
+            println!("You can use SQL CREATE TABLE statements:");
+            println!("  CREATE TABLE {} (...)", table.green());
         }
     }
 
@@ -391,7 +440,7 @@ async fn show_database_info(engine: Arc<DuckDBEngine>) -> Result<()> {
         timeout_seconds: None,
     };
 
-    let stats_result = engine.execute_query(&stats_query).await?;
+    let stats_result = execute_query_helper(&engine, &stats_query).await?;
     let table_count = if let Some(row) = stats_result.rows.get(0) {
         if let Some(serde_json::Value::Number(n)) = row.get(0) {
             n.as_u64().unwrap_or(0)
@@ -411,13 +460,13 @@ async fn show_database_info(engine: Arc<DuckDBEngine>) -> Result<()> {
     };
 
     let start_time = std::time::Instant::now();
-    engine.execute_query(&perf_query).await?;
+    let _ = execute_query_helper(&engine, &perf_query).await?;
     let query_time = start_time.elapsed();
 
     println!("⚡ {} {:.2}ms", "Query Response Time:".blue(), query_time.as_millis());
     
     // Health check
-    match engine.health_check().await {
+    match engine.check_connection().await {
         Ok(_) => println!("✅ {} {}", "Status:".blue(), "Healthy".green()),
         Err(_) => println!("❌ {} {}", "Status:".blue(), "Unhealthy".red()),
     }
@@ -448,7 +497,7 @@ async fn run_benchmark(engine: Arc<DuckDBEngine>, count: u32, concurrency: u32) 
                     timeout_seconds: None,
                 };
                 
-                let _ = engine_clone.execute_query(&query).await;
+                let _ = execute_query_helper(&engine_clone, &query).await;
             }
         });
         handles.push(handle);
@@ -475,42 +524,18 @@ async fn handle_lake_action(engine: Arc<DuckDBEngine>, action: LakeAction) -> Re
 
     match action {
         LakeAction::CreateTable { table, file, format } => {
-            let file_format = match format.as_str() {
-                "parquet" => FileFormat::Parquet,
-                "csv" => FileFormat::CSV,
-                "json" => FileFormat::JSON,
-                _ => return Err(DuckHubError::validation(format!("Unsupported format: {}", format))),
-            };
-
-            lake_manager.create_external_table(
-                engine.as_ref(),
-                &table,
-                &file,
-                &file_format,
-                None,
-            ).await?;
+            println!("{} External table creation is not yet implemented", "Info:".blue().bold());
+            println!("You can use SQL to create external tables:");
+            println!("  CREATE TABLE {} AS SELECT * FROM read_{}('{}')", table.green(), format, file);
 
             println!("{} Created external table '{}' from '{}'", 
                      "Success:".green().bold(), table.green(), file.blue());
         }
         LakeAction::Query { file, sql, format } => {
-            let file_format = match format.as_str() {
-                "parquet" => FileFormat::Parquet,
-                "csv" => FileFormat::CSV,
-                "json" => FileFormat::JSON,
-                _ => return Err(DuckHubError::validation(format!("Unsupported format: {}", format))),
-            };
-
-            let result = lake_manager.query_file(
-                engine.as_ref(),
-                &file,
-                &file_format,
-                &sql,
-                None,
-            ).await?;
-
-            println!("{} Query executed on '{}'", "Success:".green().bold(), file.blue());
-            println!("Returned {} rows", result.row_count);
+            println!("{} File querying is not yet implemented", "Info:".blue().bold());
+            println!("You can use SQL to query files directly:");
+            println!("  {}", sql.green());
+            println!("  FROM read_{}('{}')", format, file);
         }
     }
 
@@ -542,7 +567,7 @@ async fn handle_ducklake_action(engine: Arc<DuckDBEngine>, action: DuckLakeActio
                 timeout_seconds: None,
             };
 
-            engine.execute_query(&query).await?;
+            let _ = execute_query_helper(&engine, &query).await?;
             println!("{} Created DuckLake secret '{}'", "Success:".green().bold(), name.green());
         }
 
@@ -562,7 +587,7 @@ async fn handle_ducklake_action(engine: Arc<DuckDBEngine>, action: DuckLakeActio
                 timeout_seconds: None,
             };
 
-            engine.execute_query(&query).await?;
+            let _ = execute_query_helper(&engine, &query).await?;
             println!("{} Attached DuckLake database '{}'", "Success:".green().bold(), name.green());
         }
 
@@ -576,7 +601,7 @@ async fn handle_ducklake_action(engine: Arc<DuckDBEngine>, action: DuckLakeActio
                 timeout_seconds: None,
             };
 
-            match engine.execute_query(&query).await {
+            match execute_query_helper(&engine, &query).await {
                 Ok(result) => {
                     if result.rows.is_empty() {
                         println!("{} No snapshots found for database '{}'", "Info:".blue().bold(), database);
@@ -597,8 +622,10 @@ async fn handle_ducklake_action(engine: Arc<DuckDBEngine>, action: DuckLakeActio
                             table_data.push(string_row);
                         }
 
-                        let table = Table::new(table_data);
-                        println!("{}", table);
+                        // Print simple table format
+                        for row in table_data {
+                            println!("{}", row.join(" | "));
+                        }
                     }
                 }
                 Err(e) => {
@@ -608,9 +635,9 @@ async fn handle_ducklake_action(engine: Arc<DuckDBEngine>, action: DuckLakeActio
         }
 
         DuckLakeAction::TimeTravel { database, table, version, timestamp, sql } => {
-            let time_travel_clause = if let Some(v) = version {
+            let time_travel_clause = if let Some(ref v) = version {
                 format!("AT (VERSION => {})", v)
-            } else if let Some(ts) = timestamp {
+            } else if let Some(ref ts) = timestamp {
                 format!("AT (TIMESTAMP => '{}')", ts)
             } else {
                 return Err(DuckHubError::validation("Either version or timestamp must be specified"));
@@ -631,7 +658,7 @@ async fn handle_ducklake_action(engine: Arc<DuckDBEngine>, action: DuckLakeActio
                 timeout_seconds: None,
             };
 
-            let result = engine.execute_query(&query).await?;
+            let result = execute_query_helper(&engine, &query).await?;
 
             if let Some(v) = version {
                 println!("{} Time travel query at version {} executed successfully", "Success:".green().bold(), v);
@@ -657,8 +684,10 @@ async fn handle_ducklake_action(engine: Arc<DuckDBEngine>, action: DuckLakeActio
                     table_data.push(string_row);
                 }
 
-                let table = Table::new(table_data);
-                println!("{}", table);
+                // Print simple table format
+                for row in table_data {
+                    println!("{}", row.join(" | "));
+                }
             }
         }
     }

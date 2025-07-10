@@ -4,8 +4,10 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use duckhub_database::*;
+use duckhub_database::ducklake::DuckLakeOperation;
 use duckhub_common::prelude::*;
-use duckdb::Connection;
+use duckhub_common::types::{Schema, Field, DataType};
+use crate::duckdb::Connection;
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
@@ -14,10 +16,10 @@ fn create_benchmark_manager() -> DuckLakeManager {
     let conn = Connection::open_in_memory().unwrap();
     
     // 尝试安装必要的扩展
-    let _ = conn.execute("INSTALL ducklake", []);
-    let _ = conn.execute("LOAD ducklake", []);
-    let _ = conn.execute("INSTALL httpfs", []);
-    let _ = conn.execute("LOAD httpfs", []);
+    let _ = conn.execute("INSTALL ducklake", &[] as &[&str]);
+    let _ = conn.execute("LOAD ducklake", &[] as &[&str]);
+    let _ = conn.execute("INSTALL httpfs", &[] as &[&str]);
+    let _ = conn.execute("LOAD httpfs", &[] as &[&str]);
     
     DuckLakeManager::new(conn)
 }
@@ -102,33 +104,47 @@ fn bench_batch_insert(c: &mut Criterion) {
                                     name: "transaction_id".to_string(),
                                     data_type: DataType::String,
                                     nullable: false,
+                                    default_value: None,
+                                    description: None,
                                 },
                                 Field {
                                     name: "account_id".to_string(),
                                     data_type: DataType::String,
                                     nullable: false,
+                                    default_value: None,
+                                    description: None,
                                 },
                                 Field {
                                     name: "amount".to_string(),
                                     data_type: DataType::Float64,
                                     nullable: false,
+                                    default_value: None,
+                                    description: None,
                                 },
                                 Field {
                                     name: "transaction_type".to_string(),
                                     data_type: DataType::String,
                                     nullable: false,
+                                    default_value: None,
+                                    description: None,
                                 },
                                 Field {
                                     name: "transaction_date".to_string(),
                                     data_type: DataType::String,
                                     nullable: false,
+                                    default_value: None,
+                                    description: None,
                                 },
                                 Field {
                                     name: "description".to_string(),
                                     data_type: DataType::String,
                                     nullable: true,
+                                    default_value: None,
+                                    description: None,
                                 },
                             ],
+                            primary_key: Some(vec!["transaction_id".to_string()]),
+                            indexes: vec![],
                         };
                         
                         let _ = manager.create_table("bench_db", "transactions", &schema).await;
@@ -165,13 +181,19 @@ fn bench_batch_operations(c: &mut Criterion) {
                                 name: "id".to_string(),
                                 data_type: DataType::Int32,
                                 nullable: false,
+                                default_value: None,
+                                description: None,
                             },
                             Field {
                                 name: "value".to_string(),
                                 data_type: DataType::String,
                                 nullable: true,
+                                default_value: None,
+                                description: None,
                             },
                         ],
+                        primary_key: Some(vec!["id".to_string()]),
+                        indexes: vec![],
                     };
                     
                     // 创建批量操作
@@ -328,13 +350,11 @@ fn bench_retry_mechanism(c: &mut Criterion) {
     c.bench_function("ducklake_retry_mechanism", |b| {
         b.iter(|| {
             rt.block_on(async {
-                let manager = create_benchmark_manager();
+                let mut manager = create_benchmark_manager();
                 
-                // 测试重试机制的性能开销
-                let result = manager.execute_with_retry(|| {
-                    // 模拟一个总是成功的操作
-                    Ok::<(), DuckHubError>(())
-                }).await;
+                // 测试重试机制的性能开销（通过实际操作测试）
+                let config = create_benchmark_config();
+                let result = manager.attach_database("retry_test_db", &config).await;
                 
                 black_box(result);
             });
