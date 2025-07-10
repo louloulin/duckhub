@@ -1,0 +1,393 @@
+//! AI Agent服务 - DuckHub金融数据平台
+
+use duckhub_common::prelude::*;
+use duckhub_database::DuckDBEngine;
+use duckhub_query_analytics::QueryAnalyticsService;
+use std::sync::Arc;
+use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use uuid::Uuid;
+use tracing::{info, warn, debug, instrument};
+use prometheus::{Counter, Histogram, Gauge, Registry};
+
+pub mod nlp;
+pub mod recommendations;
+pub mod automation;
+pub mod chat;
+
+pub use nlp::*;
+pub use recommendations::*;
+pub use automation::*;
+pub use chat::*;
+
+/// AI Agent服务
+pub struct AIAgentService {
+    /// 数据库引擎
+    engine: Arc<DuckDBEngine>,
+    /// 查询分析服务
+    query_service: Arc<QueryAnalyticsService>,
+    /// NLP处理器
+    nlp_processor: Arc<NLPProcessor>,
+    /// 推荐引擎
+    recommendation_engine: Arc<RecommendationEngine>,
+    /// 自动化引擎
+    automation_engine: Arc<AutomationEngine>,
+    /// 聊天处理器
+    chat_processor: Arc<ChatProcessor>,
+    /// 配置
+    config: AIAgentConfig,
+    /// 监控指标
+    metrics: AIAgentMetrics,
+}
+
+/// AI Agent配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIAgentConfig {
+    /// 是否启用自然语言查询
+    pub enable_nlp: bool,
+    /// 是否启用智能推荐
+    pub enable_recommendations: bool,
+    /// 是否启用自动化分析
+    pub enable_automation: bool,
+    /// 是否启用聊天功能
+    pub enable_chat: bool,
+    /// OpenAI API密钥
+    pub openai_api_key: Option<String>,
+    /// 模型名称
+    pub model_name: String,
+    /// 最大令牌数
+    pub max_tokens: u32,
+    /// 温度参数
+    pub temperature: f32,
+    /// 会话历史保留数量
+    pub max_conversation_history: usize,
+}
+
+impl Default for AIAgentConfig {
+    fn default() -> Self {
+        Self {
+            enable_nlp: true,
+            enable_recommendations: true,
+            enable_automation: true,
+            enable_chat: true,
+            openai_api_key: None,
+            model_name: "gpt-3.5-turbo".to_string(),
+            max_tokens: 1000,
+            temperature: 0.7,
+            max_conversation_history: 10,
+        }
+    }
+}
+
+/// AI Agent监控指标
+#[derive(Debug)]
+pub struct AIAgentMetrics {
+    /// NLP查询总数
+    pub nlp_queries_total: Counter,
+    /// 推荐生成总数
+    pub recommendations_total: Counter,
+    /// 自动化任务总数
+    pub automation_tasks_total: Counter,
+    /// 聊天消息总数
+    pub chat_messages_total: Counter,
+    /// 处理时间
+    pub processing_duration: Histogram,
+    /// 当前活跃会话数
+    pub active_sessions: Gauge,
+}
+
+impl AIAgentMetrics {
+    pub fn new(registry: &Registry) -> Result<Self> {
+        let nlp_queries_total = Counter::new(
+            "duckhub_ai_agent_nlp_queries_total",
+            "Total number of NLP queries processed"
+        )?;
+        registry.register(Box::new(nlp_queries_total.clone()))?;
+
+        let recommendations_total = Counter::new(
+            "duckhub_ai_agent_recommendations_total",
+            "Total number of recommendations generated"
+        )?;
+        registry.register(Box::new(recommendations_total.clone()))?;
+
+        let automation_tasks_total = Counter::new(
+            "duckhub_ai_agent_automation_tasks_total",
+            "Total number of automation tasks executed"
+        )?;
+        registry.register(Box::new(automation_tasks_total.clone()))?;
+
+        let chat_messages_total = Counter::new(
+            "duckhub_ai_agent_chat_messages_total",
+            "Total number of chat messages processed"
+        )?;
+        registry.register(Box::new(chat_messages_total.clone()))?;
+
+        let processing_duration = Histogram::with_opts(
+            prometheus::HistogramOpts::new(
+                "duckhub_ai_agent_processing_duration_seconds",
+                "AI Agent processing duration in seconds"
+            ).buckets(vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0])
+        )?;
+        registry.register(Box::new(processing_duration.clone()))?;
+
+        let active_sessions = Gauge::new(
+            "duckhub_ai_agent_active_sessions",
+            "Number of currently active AI Agent sessions"
+        )?;
+        registry.register(Box::new(active_sessions.clone()))?;
+
+        Ok(Self {
+            nlp_queries_total,
+            recommendations_total,
+            automation_tasks_total,
+            chat_messages_total,
+            processing_duration,
+            active_sessions,
+        })
+    }
+}
+
+/// AI Agent响应
+#[derive(Debug, Clone, Serialize)]
+pub struct AIAgentResponse {
+    /// 响应ID
+    pub response_id: String,
+    /// 响应类型
+    pub response_type: ResponseType,
+    /// 响应内容
+    pub content: String,
+    /// SQL查询（如果适用）
+    pub sql_query: Option<String>,
+    /// 查询结果（如果适用）
+    pub query_result: Option<serde_json::Value>,
+    /// 推荐列表（如果适用）
+    pub recommendations: Option<Vec<Recommendation>>,
+    /// 置信度
+    pub confidence: f32,
+    /// 处理时间（毫秒）
+    pub processing_time_ms: u64,
+    /// 创建时间
+    pub created_at: DateTime<Utc>,
+}
+
+/// 响应类型
+#[derive(Debug, Clone, Serialize)]
+pub enum ResponseType {
+    /// 自然语言查询结果
+    NLPQuery,
+    /// 智能推荐
+    Recommendation,
+    /// 自动化分析结果
+    AutomationResult,
+    /// 聊天回复
+    ChatResponse,
+    /// 错误信息
+    Error,
+}
+
+impl AIAgentService {
+    /// 创建新的AI Agent服务
+    #[instrument(skip(engine, query_service, registry))]
+    pub async fn new(
+        engine: Arc<DuckDBEngine>,
+        query_service: Arc<QueryAnalyticsService>,
+        config: AIAgentConfig,
+        registry: &Registry,
+    ) -> Result<Self> {
+        let metrics = AIAgentMetrics::new(registry)?;
+        
+        let nlp_processor = Arc::new(NLPProcessor::new(&config).await?);
+        let recommendation_engine = Arc::new(RecommendationEngine::new(Arc::clone(&engine), &config).await?);
+        let automation_engine = Arc::new(AutomationEngine::new(Arc::clone(&engine), Arc::clone(&query_service)).await?);
+        let chat_processor = Arc::new(ChatProcessor::new(&config).await?);
+
+        let service = Self {
+            engine,
+            query_service,
+            nlp_processor,
+            recommendation_engine,
+            automation_engine,
+            chat_processor,
+            config,
+            metrics,
+        };
+
+        info!("AI Agent服务初始化完成");
+        Ok(service)
+    }
+
+    /// 处理自然语言查询
+    #[instrument(skip(self, query))]
+    pub async fn process_nlp_query(&self, query: &str) -> Result<AIAgentResponse> {
+        if !self.config.enable_nlp {
+            return Err(DuckHubError::validation("NLP功能未启用"));
+        }
+
+        let start_time = std::time::Instant::now();
+        self.metrics.nlp_queries_total.inc();
+
+        let response = self.process_nlp_query_internal(query).await?;
+        
+        let processing_time = start_time.elapsed();
+        self.metrics.processing_duration.observe(processing_time.as_secs_f64());
+
+        Ok(response)
+    }
+
+    /// 内部NLP查询处理
+    async fn process_nlp_query_internal(&self, query: &str) -> Result<AIAgentResponse> {
+        let start_time = std::time::Instant::now();
+        
+        // 解析自然语言查询
+        let parsed_query = self.nlp_processor.parse_query(query).await?;
+        
+        // 生成SQL查询
+        let sql_query = self.nlp_processor.generate_sql(&parsed_query).await?;
+        
+        // 执行查询
+        let query_result = self.query_service.execute_query(&sql_query).await?;
+        
+        // 生成自然语言回复
+        let content = self.nlp_processor.generate_response(&parsed_query, &query_result).await?;
+        
+        let processing_time = start_time.elapsed();
+
+        Ok(AIAgentResponse {
+            response_id: Uuid::new_v4().to_string(),
+            response_type: ResponseType::NLPQuery,
+            content,
+            sql_query: Some(sql_query),
+            query_result: Some(serde_json::to_value(&query_result.data)?),
+            recommendations: None,
+            confidence: parsed_query.confidence,
+            processing_time_ms: processing_time.as_millis() as u64,
+            created_at: Utc::now(),
+        })
+    }
+
+    /// 生成智能推荐
+    #[instrument(skip(self))]
+    pub async fn generate_recommendations(&self, context: &RecommendationContext) -> Result<AIAgentResponse> {
+        if !self.config.enable_recommendations {
+            return Err(DuckHubError::validation("推荐功能未启用"));
+        }
+
+        let start_time = std::time::Instant::now();
+        self.metrics.recommendations_total.inc();
+
+        let recommendations = self.recommendation_engine.generate_recommendations(context).await?;
+        let content = format!("为您生成了{}条智能推荐", recommendations.len());
+        
+        let processing_time = start_time.elapsed();
+        self.metrics.processing_duration.observe(processing_time.as_secs_f64());
+
+        Ok(AIAgentResponse {
+            response_id: Uuid::new_v4().to_string(),
+            response_type: ResponseType::Recommendation,
+            content,
+            sql_query: None,
+            query_result: None,
+            recommendations: Some(recommendations),
+            confidence: 0.8,
+            processing_time_ms: processing_time.as_millis() as u64,
+            created_at: Utc::now(),
+        })
+    }
+
+    /// 执行自动化分析
+    #[instrument(skip(self))]
+    pub async fn execute_automation(&self, task: &AutomationTask) -> Result<AIAgentResponse> {
+        if !self.config.enable_automation {
+            return Err(DuckHubError::validation("自动化功能未启用"));
+        }
+
+        let start_time = std::time::Instant::now();
+        self.metrics.automation_tasks_total.inc();
+
+        let result = self.automation_engine.execute_task(task).await?;
+        let content = format!("自动化任务执行完成: {}", result.summary);
+        
+        let processing_time = start_time.elapsed();
+        self.metrics.processing_duration.observe(processing_time.as_secs_f64());
+
+        Ok(AIAgentResponse {
+            response_id: Uuid::new_v4().to_string(),
+            response_type: ResponseType::AutomationResult,
+            content,
+            sql_query: result.sql_query,
+            query_result: Some(serde_json::to_value(&result.data)?),
+            recommendations: None,
+            confidence: result.confidence,
+            processing_time_ms: processing_time.as_millis() as u64,
+            created_at: Utc::now(),
+        })
+    }
+
+    /// 处理聊天消息
+    #[instrument(skip(self, message))]
+    pub async fn process_chat_message(&self, session_id: &str, message: &str) -> Result<AIAgentResponse> {
+        if !self.config.enable_chat {
+            return Err(DuckHubError::validation("聊天功能未启用"));
+        }
+
+        let start_time = std::time::Instant::now();
+        self.metrics.chat_messages_total.inc();
+
+        let response = self.chat_processor.process_message(session_id, message).await?;
+        
+        let processing_time = start_time.elapsed();
+        self.metrics.processing_duration.observe(processing_time.as_secs_f64());
+
+        Ok(AIAgentResponse {
+            response_id: Uuid::new_v4().to_string(),
+            response_type: ResponseType::ChatResponse,
+            content: response.content,
+            sql_query: response.sql_query,
+            query_result: response.query_result,
+            recommendations: response.recommendations,
+            confidence: response.confidence,
+            processing_time_ms: processing_time.as_millis() as u64,
+            created_at: Utc::now(),
+        })
+    }
+
+    /// 获取AI Agent统计信息
+    pub async fn get_agent_stats(&self) -> Result<HashMap<String, serde_json::Value>> {
+        let mut stats = HashMap::new();
+        
+        stats.insert("nlp_queries_total".to_string(), 
+                    serde_json::Value::Number(serde_json::Number::from(self.metrics.nlp_queries_total.get() as u64)));
+        stats.insert("recommendations_total".to_string(), 
+                    serde_json::Value::Number(serde_json::Number::from(self.metrics.recommendations_total.get() as u64)));
+        stats.insert("automation_tasks_total".to_string(), 
+                    serde_json::Value::Number(serde_json::Number::from(self.metrics.automation_tasks_total.get() as u64)));
+        stats.insert("chat_messages_total".to_string(), 
+                    serde_json::Value::Number(serde_json::Number::from(self.metrics.chat_messages_total.get() as u64)));
+        stats.insert("active_sessions".to_string(), 
+                    serde_json::Value::Number(serde_json::Number::from(self.metrics.active_sessions.get() as u64)));
+
+        Ok(stats)
+    }
+
+    /// 健康检查
+    pub async fn health_check(&self) -> Result<HealthStatus> {
+        // 检查各个组件的健康状态
+        match self.engine.check_connection().await {
+            Ok(_) => Ok(HealthStatus::Healthy),
+            Err(e) => {
+                warn!("AI Agent服务健康检查失败: {}", e);
+                Ok(HealthStatus::Unhealthy)
+            }
+        }
+    }
+}
+
+/// 健康状态
+#[derive(Debug, Clone, Serialize)]
+pub enum HealthStatus {
+    /// 健康
+    Healthy,
+    /// 不健康
+    Unhealthy,
+}
