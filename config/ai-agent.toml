@@ -1,0 +1,73 @@
+# DuckHub AI Agent 配置文件
+
+[deepseek]
+# DeepSeek API密钥
+api_key = "sk-a4f888023ea74cef8afae36dc8581512"
+# API基础URL (可选)
+base_url = "https://api.deepseek.com"
+
+[models]
+# 主要模型
+primary_model = "deepseek-chat"
+# 备用模型
+fallback_model = "deepseek-coder"
+# 最大令牌数
+max_tokens = 4000
+# 温度参数
+temperature = 0.1
+
+[agents.sql_generation]
+system_prompt = "你是一个专业的SQL查询生成专家..."
+max_tokens = 2000
+temperature = 0.1
+enable_tools = true
+
+[agents.data_analysis]
+system_prompt = "你是一个专业的数据分析师..."
+max_tokens = 3000
+temperature = 0.2
+enable_tools = true
+
+[agents.chat]
+system_prompt = "你是DuckHub金融数据平台的AI助手..."
+max_tokens = 2000
+temperature = 0.3
+enable_tools = true
+
+[agents.recommendation]
+system_prompt = "你是一个智能推荐系统专家..."
+max_tokens = 3000
+temperature = 0.2
+enable_tools = true
+
+[tools]
+# 数据库查询工具
+enable_database_query = true
+query_timeout_seconds = 30
+max_result_rows = 1000
+
+# 表结构检查工具
+enable_schema_inspector = true
+cache_schema_seconds = 300
+
+# 数据分析工具
+enable_data_analyzer = true
+max_analysis_rows = 10000
+
+# 推荐工具
+enable_recommendation = true
+max_recommendations = 10
+
+[performance]
+# 响应超时 (秒)
+response_timeout = 30
+# 重试次数
+max_retries = 3
+# 并发限制
+max_concurrent_requests = 100
+
+[monitoring]
+# 启用监控
+enable_metrics = true
+# 监控端口
+metrics_port = 9090

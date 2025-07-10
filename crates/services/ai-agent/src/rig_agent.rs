@@ -1421,9 +1421,22 @@ impl Default for RigAIConfig {
             enable_tools: true,
         });
 
+        let deepseek_api_key = std::env::var("DEEPSEEK_API_KEY")
+            .unwrap_or_else(|_| "sk-a4f888023ea74cef8afae36dc8581512".to_string());
+
+        // 检查API密钥是否为占位符
+        if deepseek_api_key == "your-deepseek-api-key" || deepseek_api_key.starts_with("your-") {
+            warn!("⚠️  检测到占位符API密钥，AI功能将受限！");
+            warn!("   请设置真实的DeepSeek API密钥:");
+            warn!("   方法1: export DEEPSEEK_API_KEY='your-real-api-key'");
+            warn!("   方法2: 在配置文件中设置真实密钥");
+            warn!("   获取API密钥: https://platform.deepseek.com/");
+        } else {
+            info!("✅ DeepSeek API密钥已配置 (长度: {}字符)", deepseek_api_key.len());
+        }
+
         Self {
-            deepseek_api_key: std::env::var("DEEPSEEK_API_KEY")
-                .unwrap_or_else(|_| "your-deepseek-api-key".to_string()),
+            deepseek_api_key,
             model_config: ModelConfig::default(),
             agent_configs,
             tool_configs: ToolConfigs::default(),

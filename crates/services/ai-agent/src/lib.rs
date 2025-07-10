@@ -27,6 +27,8 @@ pub mod rig_agent;
 mod rig_tests;
 #[cfg(test)]
 mod performance_tests;
+#[cfg(test)]
+mod api_test;
 
 pub use nlp::*;
 pub use recommendations::*;
