@@ -8,6 +8,7 @@ mod tests {
     use prometheus::Registry;
     use std::sync::Arc;
     use tempfile::tempdir;
+    use rig::tool::Tool;
 
     async fn create_test_engine() -> Arc<DuckDBEngine> {
         let temp_dir = tempdir().unwrap();

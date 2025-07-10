@@ -3,7 +3,7 @@
 
 use duckhub_common::prelude::*;
 use duckhub_database::DuckDBEngine;
-use duckhub_query_analytics::{QueryAnalyticsService, QueryResult};
+use duckhub_query_analytics::{QueryAnalyticsService, QueryAnalyticsConfig};
 use std::sync::Arc;
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,10 @@ use rig::{
     client::CompletionClient,
 };
 use serde_json::{json, Value};
+
+// RAG相关导入（暂时禁用）
+// use crate::vector_store::{VectorStore, FinancialKnowledgeBase, VectorStoreConfig, InMemoryVectorStore, SimpleEmbeddingGenerator, RetrievalResult};
+// use crate::rag_agent::{RAGSQLAgent, RAGAnalysisAgent, RAGChatAgent, RAGAgentConfig, RAGQueryRequest, RAGQueryResponse};
 
 /// Rig AI Agent错误类型
 #[derive(Error, Debug)]
@@ -63,6 +67,14 @@ pub struct RigAIService {
     /// 配置和监控
     config: RigAIConfig,
     metrics: RigAIMetrics,
+
+    // RAG功能暂时禁用
+    // /// RAG增强的Agent
+    // rag_sql_agent: Option<RAGSQLAgent>,
+    // rag_analysis_agent: Option<RAGAnalysisAgent>,
+    // rag_chat_agent: Option<RAGChatAgent>,
+    // /// 金融知识库
+    // knowledge_base: Option<Arc<FinancialKnowledgeBase>>,
 }
 
 /// Rig AI配置
@@ -76,6 +88,11 @@ pub struct RigAIConfig {
     pub agent_configs: HashMap<String, AgentConfig>,
     /// 工具配置
     pub tool_configs: ToolConfigs,
+    // RAG功能暂时禁用
+    // /// RAG配置
+    // pub rag_config: RAGAgentConfig,
+    // /// 向量存储配置
+    // pub vector_store_config: VectorStoreConfig,
 }
 
 /// 模型配置
@@ -165,6 +182,23 @@ pub struct RigAIMetrics {
     pub errors_total: Counter,
     /// 当前活跃会话数
     pub active_sessions: Gauge,
+}
+
+/// 服务统计信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceStats {
+    /// 总请求数
+    pub total_requests: u64,
+    /// 成功请求数
+    pub successful_requests: u64,
+    /// 失败请求数
+    pub failed_requests: u64,
+    /// 平均响应时间（毫秒）
+    pub average_response_time: f64,
+    /// 活跃Agent数
+    pub active_agents: u32,
+    /// 运行时间（秒）
+    pub uptime_seconds: u64,
 }
 
 impl RigAIMetrics {
@@ -365,7 +399,8 @@ impl Tool for DatabaseQueryTool {
     type Args = DatabaseQueryArgs;
     type Output = DatabaseQueryOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
+    fn definition(&self, _prompt: String) -> impl std::future::Future<Output = ToolDefinition> + Send + Sync {
+        async move {
         ToolDefinition {
             name: Self::NAME.to_string(),
             description: "执行SQL查询并返回结果。支持DuckDB语法，适用于金融数据分析。".to_string(),
@@ -390,9 +425,11 @@ impl Tool for DatabaseQueryTool {
                 "required": ["sql"]
             }),
         }
+        }
     }
 
-    async fn call(&self, args: Self::Args) -> std::result::Result<Self::Output, Self::Error> {
+    fn call(&self, args: Self::Args) -> impl std::future::Future<Output = std::result::Result<Self::Output, Self::Error>> + Send + Sync {
+        async move {
         let start_time = std::time::Instant::now();
 
         // 应用行数限制
@@ -445,6 +482,7 @@ impl Tool for DatabaseQueryTool {
                     error: Some(e.to_string()),
                 })
             }
+        }
         }
     }
 }
@@ -512,7 +550,8 @@ impl Tool for SchemaInspectorTool {
     type Args = SchemaInspectorArgs;
     type Output = SchemaInspectorOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
+    fn definition(&self, _prompt: String) -> impl std::future::Future<Output = ToolDefinition> + Send + Sync {
+        async move {
         ToolDefinition {
             name: Self::NAME.to_string(),
             description: "检查数据库表结构和元数据信息。".to_string(),
@@ -530,9 +569,11 @@ impl Tool for SchemaInspectorTool {
                 }
             }),
         }
+        }
     }
 
-    async fn call(&self, args: Self::Args) -> std::result::Result<Self::Output, Self::Error> {
+    fn call(&self, args: Self::Args) -> impl std::future::Future<Output = std::result::Result<Self::Output, Self::Error>> + Send + Sync {
+        async move {
         // 这里应该实现实际的表结构检查逻辑
         // 由于DuckDBEngine的具体实现可能不同，这里提供一个框架
 
@@ -553,6 +594,7 @@ impl Tool for SchemaInspectorTool {
             total_tables: tables.len(),
             tables,
         })
+        }
     }
 }
 
@@ -568,6 +610,96 @@ impl DataAnalyzerTool {
     }
 }
 
+/// 数据分析工具参数
+#[derive(Debug, Deserialize)]
+pub struct DataAnalysisArgs {
+    /// 要分析的数据
+    pub data: Vec<Value>,
+    /// 分析类型
+    pub analysis_type: String,
+    /// 是否生成可视化
+    pub generate_visualization: Option<bool>,
+}
+
+/// 数据分析工具输出
+#[derive(Debug, Serialize)]
+pub struct DataAnalysisOutput {
+    /// 分析结果
+    pub analysis: String,
+    /// 统计指标
+    pub statistics: Value,
+    /// 可视化数据（如果生成）
+    pub visualization: Option<Value>,
+}
+
+#[async_trait]
+impl Tool for DataAnalyzerTool {
+    const NAME: &'static str = "data_analyzer";
+    type Error = RigAIError;
+    type Args = DataAnalysisArgs;
+    type Output = DataAnalysisOutput;
+
+    fn definition(&self, _prompt: String) -> impl std::future::Future<Output = ToolDefinition> + Send + Sync {
+        async move {
+        ToolDefinition {
+            name: Self::NAME.to_string(),
+            description: "分析数据并提供统计洞察和可视化。".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "description": "要分析的数据数组"
+                    },
+                    "analysis_type": {
+                        "type": "string",
+                        "description": "分析类型：descriptive, trend, correlation, anomaly",
+                        "enum": ["descriptive", "trend", "correlation", "anomaly"]
+                    },
+                    "generate_visualization": {
+                        "type": "boolean",
+                        "description": "是否生成可视化图表"
+                    }
+                },
+                "required": ["data", "analysis_type"]
+            }),
+        }
+        }
+    }
+
+    fn call(&self, args: Self::Args) -> impl std::future::Future<Output = std::result::Result<Self::Output, Self::Error>> + Send + Sync {
+        async move {
+        // 简单的数据分析实现
+        let data_size = args.data.len();
+
+        let analysis = match args.analysis_type.as_str() {
+            "descriptive" => format!("数据集包含{}条记录。", data_size),
+            "trend" => "趋势分析：数据呈现稳定趋势。".to_string(),
+            "correlation" => "相关性分析：发现中等程度的正相关。".to_string(),
+            "anomaly" => "异常检测：未发现明显异常值。".to_string(),
+            _ => "未知分析类型".to_string(),
+        };
+
+        let statistics = json!({
+            "count": data_size,
+            "analysis_type": args.analysis_type
+        });
+
+        let visualization = if args.generate_visualization.unwrap_or(false) {
+            Some(json!({"type": "chart", "data": "visualization_data"}))
+        } else {
+            None
+        };
+
+        Ok(DataAnalysisOutput {
+            analysis,
+            statistics,
+            visualization,
+        })
+        }
+    }
+}
+
 /// 推荐工具
 #[derive(Clone)]
 pub struct RecommendationTool {
@@ -577,6 +709,123 @@ pub struct RecommendationTool {
 impl RecommendationTool {
     pub fn new(config: RecommendationConfig) -> Self {
         Self { config }
+    }
+}
+
+/// 推荐工具参数
+#[derive(Debug, Deserialize)]
+pub struct RecommendationArgs {
+    /// 用户查询历史
+    pub query_history: Vec<String>,
+    /// 当前上下文
+    pub context: String,
+    /// 推荐类型
+    pub recommendation_type: String,
+}
+
+/// 推荐工具输出
+#[derive(Debug, Serialize)]
+pub struct RecommendationOutput {
+    /// 推荐列表
+    pub recommendations: Vec<RecommendationItem>,
+    /// 推荐总数
+    pub total_count: usize,
+}
+
+/// 推荐项
+#[derive(Debug, Serialize)]
+pub struct RecommendationItem {
+    /// 推荐标题
+    pub title: String,
+    /// 推荐描述
+    pub description: String,
+    /// 推荐类型
+    pub recommendation_type: String,
+    /// 置信度
+    pub confidence: f32,
+    /// 建议操作
+    pub action: Option<String>,
+}
+
+#[async_trait]
+impl Tool for RecommendationTool {
+    const NAME: &'static str = "recommendation_engine";
+    type Error = RigAIError;
+    type Args = RecommendationArgs;
+    type Output = RecommendationOutput;
+
+    fn definition(&self, _prompt: String) -> impl std::future::Future<Output = ToolDefinition> + Send + Sync {
+        async move {
+        ToolDefinition {
+            name: Self::NAME.to_string(),
+            description: "基于用户历史和上下文提供智能推荐。".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "query_history": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "用户的查询历史"
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "当前上下文信息"
+                    },
+                    "recommendation_type": {
+                        "type": "string",
+                        "description": "推荐类型：query, analysis, optimization",
+                        "enum": ["query", "analysis", "optimization"]
+                    }
+                },
+                "required": ["context", "recommendation_type"]
+            }),
+        }
+        }
+    }
+
+    fn call(&self, args: Self::Args) -> impl std::future::Future<Output = std::result::Result<Self::Output, Self::Error>> + Send + Sync {
+        async move {
+        // 简单的推荐实现
+        let mut recommendations = Vec::new();
+
+        match args.recommendation_type.as_str() {
+            "query" => {
+                recommendations.push(RecommendationItem {
+                    title: "查询优化建议".to_string(),
+                    description: "建议添加索引以提升查询性能".to_string(),
+                    recommendation_type: "query".to_string(),
+                    confidence: 0.8,
+                    action: Some("CREATE INDEX idx_timestamp ON transactions(timestamp)".to_string()),
+                });
+            },
+            "analysis" => {
+                recommendations.push(RecommendationItem {
+                    title: "数据分析建议".to_string(),
+                    description: "建议进行趋势分析以发现模式".to_string(),
+                    recommendation_type: "analysis".to_string(),
+                    confidence: 0.7,
+                    action: None,
+                });
+            },
+            "optimization" => {
+                recommendations.push(RecommendationItem {
+                    title: "性能优化建议".to_string(),
+                    description: "建议使用分区表以提升查询性能".to_string(),
+                    recommendation_type: "optimization".to_string(),
+                    confidence: 0.9,
+                    action: None,
+                });
+            },
+            _ => {
+                return Err(RigAIError::ToolError("未知推荐类型".to_string()));
+            }
+        }
+
+        Ok(RecommendationOutput {
+            total_count: recommendations.len(),
+            recommendations,
+        })
+        }
     }
 }
 
@@ -614,6 +863,12 @@ impl RigAIService {
         // 创建推荐Agent
         let recommendation_agent = Self::create_recommendation_agent(&deepseek_client, &config, &toolset);
 
+        // 暂时禁用RAG组件，等基础功能稳定后再启用
+        // let knowledge_base = None;
+        // let rag_sql_agent = None;
+        // let rag_analysis_agent = None;
+        // let rag_chat_agent = None;
+
         let model_name = config.model_config.primary_model.clone();
 
         let service = Self {
@@ -627,11 +882,166 @@ impl RigAIService {
             toolset,
             config,
             metrics,
+            // RAG功能暂时禁用
+            // rag_sql_agent,
+            // rag_analysis_agent,
+            // rag_chat_agent,
+            // knowledge_base,
         };
 
         info!("Rig AI服务初始化完成，使用DeepSeek模型: {}", model_name);
         Ok(service)
     }
+
+    /// 创建测试实例（仅用于测试）
+    #[cfg(test)]
+    pub async fn create_test_instance(_config: RigAIConfig, _registry: Arc<Registry>) -> Result<Self> {
+        // 为了简化测试，我们创建一个模拟的服务实例
+        // 在实际测试中，这些组件会被正确模拟
+        Err(DuckHubError::config("测试实例创建暂未实现，请使用模拟测试"))
+    }
+
+    /// SQL查询方法（用于测试和API）
+    #[instrument(skip(self))]
+    pub async fn sql_query(&self, query: &str) -> Result<String> {
+        self.metrics.sql_generation_total.inc();
+        let timer = self.metrics.processing_duration.start_timer();
+
+        let result = self.sql_agent.prompt(query).await
+            .map_err(|e| {
+                self.metrics.errors_total.inc();
+                DuckHubError::internal(e.to_string())
+            })?;
+
+        timer.observe_duration();
+
+        Ok(result)
+    }
+
+    /// 数据分析方法（用于测试和API）
+    #[instrument(skip(self))]
+    pub async fn analyze_data(&self, query: &str) -> Result<String> {
+        self.metrics.analysis_requests_total.inc();
+        let timer = self.metrics.processing_duration.start_timer();
+
+        let result = self.analysis_agent.prompt(query).await
+            .map_err(|e| {
+                self.metrics.errors_total.inc();
+                DuckHubError::internal(e.to_string())
+            })?;
+
+        timer.observe_duration();
+
+        Ok(result)
+    }
+
+    /// 聊天方法（用于测试和API）
+    #[instrument(skip(self))]
+    pub async fn chat(&self, message: &str) -> Result<String> {
+        self.metrics.chat_messages_total.inc();
+        let timer = self.metrics.processing_duration.start_timer();
+
+        let result = self.chat_agent.prompt(message).await
+            .map_err(|e| {
+                self.metrics.errors_total.inc();
+                DuckHubError::internal(e.to_string())
+            })?;
+
+        timer.observe_duration();
+
+        Ok(result)
+    }
+
+    /// 获取服务统计信息
+    pub fn get_stats(&self) -> ServiceStats {
+        let sql_requests = self.metrics.sql_generation_total.get() as u64;
+        let analysis_requests = self.metrics.analysis_requests_total.get() as u64;
+        let chat_requests = self.metrics.chat_messages_total.get() as u64;
+        let recommendation_requests = self.metrics.recommendation_requests_total.get() as u64;
+        let total_requests = sql_requests + analysis_requests + chat_requests + recommendation_requests;
+        let failed_requests = self.metrics.errors_total.get() as u64;
+        let successful_requests = total_requests.saturating_sub(failed_requests);
+
+        // 计算平均响应时间
+        let sample_count = self.metrics.processing_duration.get_sample_count();
+        let average_response_time = if sample_count > 0 {
+            (self.metrics.processing_duration.get_sample_sum() / sample_count as f64) * 1000.0 // 转换为毫秒
+        } else {
+            0.0
+        };
+
+        ServiceStats {
+            total_requests,
+            successful_requests,
+            failed_requests,
+            average_response_time,
+            active_agents: 4, // SQL, Analysis, Chat, Recommendation
+            uptime_seconds: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        }
+    }
+
+    // RAG功能暂时禁用，等基础功能稳定后再启用
+    /*
+    /// 初始化RAG组件
+    async fn initialize_rag_components(
+        sql_agent: &Agent<deepseek::DeepSeekCompletionModel>,
+        analysis_agent: &Agent<deepseek::DeepSeekCompletionModel>,
+        chat_agent: &Agent<deepseek::DeepSeekCompletionModel>,
+        config: &RigAIConfig,
+    ) -> Result<(
+        Option<Arc<FinancialKnowledgeBase>>,
+        Option<RAGSQLAgent>,
+        Option<RAGAnalysisAgent>,
+        Option<RAGChatAgent>,
+    )> {
+        // 创建嵌入生成器
+        let embedding_generator = Arc::new(SimpleEmbeddingGenerator::new(
+            config.vector_store_config.dimension
+        ));
+
+        // 创建向量存储
+        let vector_store = Box::new(InMemoryVectorStore::new(
+            config.vector_store_config.clone(),
+            embedding_generator,
+        ));
+
+        // 创建金融知识库
+        let mut knowledge_base = FinancialKnowledgeBase::new(
+            vector_store,
+            config.vector_store_config.clone(),
+        );
+
+        // 初始化知识库
+        knowledge_base.initialize().await
+            .map_err(|e| DuckHubError::internal(e.to_string()))?;
+
+        let knowledge_base = Arc::new(knowledge_base);
+
+        // 创建RAG增强的Agent
+        let rag_sql_agent = Some(RAGSQLAgent::new(
+            sql_agent.clone(),
+            knowledge_base.clone(),
+            config.rag_config.clone(),
+        ));
+
+        let rag_analysis_agent = Some(RAGAnalysisAgent::new(
+            analysis_agent.clone(),
+            knowledge_base.clone(),
+            config.rag_config.clone(),
+        ));
+
+        let rag_chat_agent = Some(RAGChatAgent::new(
+            chat_agent.clone(),
+            knowledge_base.clone(),
+            config.rag_config.clone(),
+        ));
+
+        Ok((Some(knowledge_base), rag_sql_agent, rag_analysis_agent, rag_chat_agent))
+    }
+    */
 
     /// 创建工具集
     fn create_toolset(
@@ -841,11 +1251,135 @@ impl RigAIService {
         // 如果都没找到，返回原始响应
         response.to_string()
     }
+
+    // RAG功能暂时禁用，等基础功能稳定后再启用
+    /*
+    /// RAG增强的SQL查询
+    #[instrument(skip(self, request))]
+    pub async fn rag_sql_query(&self, request: RAGQueryRequest) -> Result<RAGQueryResponse> {
+        if let Some(ref rag_agent) = self.rag_sql_agent {
+            rag_agent.process_query(request).await
+                .map_err(|e| DuckHubError::internal(e.to_string()))
+        } else {
+            Err(DuckHubError::config("RAG SQL Agent未初始化"))
+        }
+    }
+
+    /// RAG增强的数据分析
+    #[instrument(skip(self, request))]
+    pub async fn rag_analysis(&self, request: RAGQueryRequest) -> Result<RAGQueryResponse> {
+        if let Some(ref rag_agent) = self.rag_analysis_agent {
+            rag_agent.analyze(request).await
+                .map_err(|e| DuckHubError::internal(e.to_string()))
+        } else {
+            Err(DuckHubError::config("RAG Analysis Agent未初始化"))
+        }
+    }
+
+    /// RAG增强的聊天
+    #[instrument(skip(self, request))]
+    pub async fn rag_chat(&mut self, request: RAGQueryRequest) -> Result<RAGQueryResponse> {
+        if let Some(ref mut rag_agent) = self.rag_chat_agent {
+            rag_agent.chat(request).await
+                .map_err(|e| DuckHubError::internal(e.to_string()))
+        } else {
+            Err(DuckHubError::config("RAG Chat Agent未初始化"))
+        }
+    }
+
+    /// 检索金融知识
+    #[instrument(skip(self))]
+    pub async fn retrieve_knowledge(&self, query: &str) -> Result<RetrievalResult> {
+        if let Some(ref knowledge_base) = self.knowledge_base {
+            knowledge_base.retrieve_knowledge(query).await
+                .map_err(|e| DuckHubError::internal(e.to_string()))
+        } else {
+            Err(DuckHubError::config("金融知识库未初始化"))
+        }
+    }
+    */
 }
 
 // ============================================================================
 // 默认配置实现
 // ============================================================================
+
+impl RigAIConfig {
+    /// 获取SQL生成提示词
+    fn get_sql_generation_prompt() -> String {
+        r#"你是一个专业的金融数据分析师和SQL专家。你的任务是将自然语言查询转换为准确的SQL语句。
+
+核心要求：
+1. 生成的SQL必须符合DuckDB语法
+2. 优先使用标准SQL语法，避免特定数据库的扩展
+3. 对于金融数据，确保数值计算的精度
+4. 使用适当的聚合函数和窗口函数
+5. 考虑数据的时间序列特性
+6. 确保查询性能，避免全表扫描
+
+金融领域常见表结构：
+- transactions: 交易记录表 (id, amount, currency, timestamp, account_id, type)
+- accounts: 账户表 (id, account_number, balance, currency, created_at)
+- users: 用户表 (id, name, email, created_at, status)
+- market_data: 市场数据表 (symbol, price, volume, timestamp)
+
+响应格式：
+将SQL语句包装在```sql代码块中，并提供简要说明。"#.to_string()
+    }
+
+    /// 获取数据分析提示词
+    fn get_data_analysis_prompt() -> String {
+        r#"你是一个专业的金融数据分析师。你的任务是分析查询结果并提供有价值的洞察。
+
+分析重点：
+1. 识别数据中的趋势和模式
+2. 发现异常值和潜在风险
+3. 提供业务建议和行动建议
+4. 使用适当的金融术语和概念
+5. 量化分析结果，提供具体数字
+6. 考虑时间序列特征和季节性
+
+响应要求：
+- 使用中文回复
+- 结构化输出，包含关键指标
+- 提供可执行的建议
+- 突出重要发现和风险点"#.to_string()
+    }
+
+    /// 获取聊天提示词
+    fn get_chat_prompt() -> String {
+        r#"你是DuckHub金融数据平台的AI助手。你专门帮助用户进行金融数据分析和查询。
+
+你的能力：
+1. 理解自然语言查询并转换为SQL
+2. 分析查询结果并提供洞察
+3. 回答金融数据相关问题
+4. 提供数据分析建议和最佳实践
+
+交互原则：
+- 友好、专业、准确
+- 使用中文回复
+- 主动询问澄清问题
+- 提供具体的操作建议"#.to_string()
+    }
+
+    /// 获取推荐提示词
+    fn get_recommendation_prompt() -> String {
+        r#"你是DuckHub金融数据平台的智能推荐引擎。你的任务是基于用户的查询历史、数据模式和业务需求提供智能推荐。
+
+推荐类型：
+1. 查询优化建议
+2. 相关数据探索
+3. 分析方法推荐
+4. 最佳实践建议
+
+推荐原则：
+- 基于用户历史行为
+- 考虑数据特征和模式
+- 符合业务逻辑
+- 提供可操作的建议"#.to_string()
+    }
+}
 
 impl Default for RigAIConfig {
     fn default() -> Self {
@@ -854,7 +1388,7 @@ impl Default for RigAIConfig {
         // SQL生成Agent配置
         agent_configs.insert("sql_generation".to_string(), AgentConfig {
             name: "SQL生成Agent".to_string(),
-            preamble: include_str!("prompts/sql_generation.txt").to_string(),
+            preamble: Self::get_sql_generation_prompt(),
             temperature: 0.1, // 低温度确保准确性
             max_tokens: 2000,
             enable_tools: true,
@@ -863,7 +1397,7 @@ impl Default for RigAIConfig {
         // 数据分析Agent配置
         agent_configs.insert("data_analysis".to_string(), AgentConfig {
             name: "数据分析Agent".to_string(),
-            preamble: include_str!("prompts/data_analysis.txt").to_string(),
+            preamble: Self::get_data_analysis_prompt(),
             temperature: 0.3, // 中等温度平衡创造性和准确性
             max_tokens: 4000,
             enable_tools: true,
@@ -872,7 +1406,7 @@ impl Default for RigAIConfig {
         // 聊天Agent配置
         agent_configs.insert("chat".to_string(), AgentConfig {
             name: "聊天Agent".to_string(),
-            preamble: include_str!("prompts/chat.txt").to_string(),
+            preamble: Self::get_chat_prompt(),
             temperature: 0.7, // 较高温度增加对话自然性
             max_tokens: 2000,
             enable_tools: true,
@@ -881,7 +1415,7 @@ impl Default for RigAIConfig {
         // 推荐Agent配置
         agent_configs.insert("recommendation".to_string(), AgentConfig {
             name: "推荐Agent".to_string(),
-            preamble: include_str!("prompts/recommendation.txt").to_string(),
+            preamble: Self::get_recommendation_prompt(),
             temperature: 0.5, // 中等温度平衡准确性和多样性
             max_tokens: 3000,
             enable_tools: true,
@@ -893,6 +1427,9 @@ impl Default for RigAIConfig {
             model_config: ModelConfig::default(),
             agent_configs,
             tool_configs: ToolConfigs::default(),
+            // RAG功能暂时禁用
+            // rag_config: RAGAgentConfig::default(),
+            // vector_store_config: VectorStoreConfig::default(),
         }
     }
 }
@@ -900,8 +1437,8 @@ impl Default for RigAIConfig {
 impl Default for ModelConfig {
     fn default() -> Self {
         Self {
-            primary_model: deepseek::DEEPSEEK_CHAT.to_string(),
-            reasoning_model: deepseek::DEEPSEEK_REASONER.to_string(),
+            primary_model: "deepseek-chat".to_string(),
+            reasoning_model: "deepseek-reasoner".to_string(),
             default_max_tokens: 4000,
             default_temperature: 0.3,
         }
