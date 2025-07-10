@@ -1,0 +1,386 @@
+//! DuckHub监控和运维工具
+//! 
+//! 提供全面的系统监控和运维功能：
+//! - 系统性能监控
+//! - 健康检查
+//! - 告警管理
+//! - 指标收集和展示
+
+use duckhub_common::prelude::*;
+use duckhub_database::DuckDBEngine;
+use std::sync::Arc;
+use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use uuid::Uuid;
+use tracing::{info, warn, debug, instrument};
+use prometheus::{Counter, Histogram, Gauge, Registry};
+
+pub mod metrics;
+pub mod health;
+pub mod alerts;
+pub mod system;
+
+pub use metrics::*;
+pub use health::*;
+pub use alerts::*;
+pub use system::*;
+
+/// 监控服务主结构
+pub struct MonitoringService {
+    /// 数据库引擎
+    engine: Arc<DuckDBEngine>,
+    /// 指标收集器
+    metrics_collector: Arc<MetricsCollector>,
+    /// 健康检查器
+    health_checker: Arc<HealthChecker>,
+    /// 告警管理器
+    alert_manager: Arc<AlertManager>,
+    /// 系统监控器
+    system_monitor: Arc<SystemMonitor>,
+    /// 监控配置
+    config: MonitoringConfig,
+    /// 监控指标
+    metrics: MonitoringMetrics,
+}
+
+/// 监控配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MonitoringConfig {
+    /// 指标收集间隔（秒）
+    pub metrics_interval: u64,
+    /// 健康检查间隔（秒）
+    pub health_check_interval: u64,
+    /// 告警检查间隔（秒）
+    pub alert_check_interval: u64,
+    /// 数据保留天数
+    pub retention_days: u32,
+    /// 是否启用系统监控
+    pub enable_system_monitoring: bool,
+    /// 是否启用网络监控
+    pub enable_network_monitoring: bool,
+    /// 告警配置
+    pub alerts: AlertConfig,
+}
+
+impl Default for MonitoringConfig {
+    fn default() -> Self {
+        Self {
+            metrics_interval: 30,      // 30秒
+            health_check_interval: 60, // 1分钟
+            alert_check_interval: 30,  // 30秒
+            retention_days: 30,        // 30天
+            enable_system_monitoring: true,
+            enable_network_monitoring: true,
+            alerts: AlertConfig::default(),
+        }
+    }
+}
+
+/// 监控指标
+#[derive(Debug, Clone)]
+pub struct MonitoringMetrics {
+    /// 收集的指标数量
+    pub metrics_collected: Counter,
+    /// 健康检查次数
+    pub health_checks: Counter,
+    /// 告警触发次数
+    pub alerts_triggered: Counter,
+    /// 监控延迟
+    pub monitoring_duration: Histogram,
+    /// 活跃的监控任务数
+    pub active_monitors: Gauge,
+}
+
+impl MonitoringMetrics {
+    /// 创建新的监控指标实例
+    pub fn new(registry: &Registry) -> Result<Self> {
+        let metrics_collected = Counter::new(
+            "duckhub_monitoring_metrics_collected_total",
+            "收集的指标数量"
+        )?;
+        
+        let health_checks = Counter::new(
+            "duckhub_monitoring_health_checks_total", 
+            "健康检查次数"
+        )?;
+        
+        let alerts_triggered = Counter::new(
+            "duckhub_monitoring_alerts_triggered_total",
+            "告警触发次数"
+        )?;
+        
+        let monitoring_duration = Histogram::with_opts(
+            prometheus::HistogramOpts::new(
+                "duckhub_monitoring_duration_seconds",
+                "监控处理延迟分布"
+            )
+        )?;
+        
+        let active_monitors = Gauge::new(
+            "duckhub_monitoring_active_monitors",
+            "活跃的监控任务数"
+        )?;
+
+        // 注册指标
+        registry.register(Box::new(metrics_collected.clone()))?;
+        registry.register(Box::new(health_checks.clone()))?;
+        registry.register(Box::new(alerts_triggered.clone()))?;
+        registry.register(Box::new(monitoring_duration.clone()))?;
+        registry.register(Box::new(active_monitors.clone()))?;
+
+        Ok(Self {
+            metrics_collected,
+            health_checks,
+            alerts_triggered,
+            monitoring_duration,
+            active_monitors,
+        })
+    }
+}
+
+impl MonitoringService {
+    /// 创建新的监控服务实例
+    #[instrument(skip(engine, registry))]
+    pub async fn new(
+        engine: Arc<DuckDBEngine>,
+        config: MonitoringConfig,
+        registry: &Registry,
+    ) -> Result<Self> {
+        // 创建监控指标
+        let metrics = MonitoringMetrics::new(registry)?;
+
+        // 创建各个组件
+        let metrics_collector = Arc::new(MetricsCollector::new(Arc::clone(&engine)).await?);
+        let health_checker = Arc::new(HealthChecker::new(Arc::clone(&engine)).await?);
+        let alert_manager = Arc::new(AlertManager::new(Arc::clone(&engine), config.alerts.clone()).await?);
+        let system_monitor = Arc::new(SystemMonitor::new());
+
+        info!("创建监控服务");
+
+        Ok(Self {
+            engine,
+            metrics_collector,
+            health_checker,
+            alert_manager,
+            system_monitor,
+            config,
+            metrics,
+        })
+    }
+
+    /// 启动监控服务
+    #[instrument(skip(self))]
+    pub async fn start(&self) -> Result<()> {
+        info!("启动监控服务");
+
+        // 启动指标收集
+        if self.config.enable_system_monitoring {
+            self.start_metrics_collection().await?;
+        }
+
+        // 启动健康检查
+        self.start_health_checks().await?;
+
+        // 启动告警检查
+        self.start_alert_monitoring().await?;
+
+        info!("监控服务启动完成");
+        Ok(())
+    }
+
+    /// 停止监控服务
+    #[instrument(skip(self))]
+    pub async fn stop(&self) -> Result<()> {
+        info!("停止监控服务");
+        // 实际实现中应该停止所有后台任务
+        Ok(())
+    }
+
+    /// 启动指标收集
+    async fn start_metrics_collection(&self) -> Result<()> {
+        let collector = Arc::clone(&self.metrics_collector);
+        let system_monitor = Arc::clone(&self.system_monitor);
+        let metrics = self.metrics.clone();
+        let interval = self.config.metrics_interval;
+
+        tokio::spawn(async move {
+            let mut interval_timer = tokio::time::interval(
+                tokio::time::Duration::from_secs(interval)
+            );
+
+            loop {
+                interval_timer.tick().await;
+                
+                let start_time = std::time::Instant::now();
+                
+                // 收集系统指标
+                if let Ok(system_metrics) = system_monitor.collect_metrics().await {
+                    if let Err(e) = collector.store_metrics(system_metrics).await {
+                        warn!("存储系统指标失败: {}", e);
+                    } else {
+                        metrics.metrics_collected.inc();
+                    }
+                }
+
+                let duration = start_time.elapsed();
+                metrics.monitoring_duration.observe(duration.as_secs_f64());
+            }
+        });
+
+        Ok(())
+    }
+
+    /// 启动健康检查
+    async fn start_health_checks(&self) -> Result<()> {
+        let checker = Arc::clone(&self.health_checker);
+        let metrics = self.metrics.clone();
+        let interval = self.config.health_check_interval;
+
+        tokio::spawn(async move {
+            let mut interval_timer = tokio::time::interval(
+                tokio::time::Duration::from_secs(interval)
+            );
+
+            loop {
+                interval_timer.tick().await;
+                
+                if let Err(e) = checker.run_health_checks().await {
+                    warn!("健康检查失败: {}", e);
+                } else {
+                    metrics.health_checks.inc();
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// 启动告警监控
+    async fn start_alert_monitoring(&self) -> Result<()> {
+        let alert_manager = Arc::clone(&self.alert_manager);
+        let metrics = self.metrics.clone();
+        let interval = self.config.alert_check_interval;
+
+        tokio::spawn(async move {
+            let mut interval_timer = tokio::time::interval(
+                tokio::time::Duration::from_secs(interval)
+            );
+
+            loop {
+                interval_timer.tick().await;
+                
+                match alert_manager.check_alerts().await {
+                    Ok(triggered_count) => {
+                        if triggered_count > 0 {
+                            metrics.alerts_triggered.inc_by(triggered_count as f64);
+                        }
+                    }
+                    Err(e) => {
+                        warn!("告警检查失败: {}", e);
+                    }
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// 获取监控统计信息
+    pub async fn get_monitoring_stats(&self) -> MonitoringStats {
+        MonitoringStats {
+            metrics_collected: self.metrics.metrics_collected.get() as u64,
+            health_checks_performed: self.metrics.health_checks.get() as u64,
+            alerts_triggered: self.metrics.alerts_triggered.get() as u64,
+            active_monitors: self.metrics.active_monitors.get() as u32,
+        }
+    }
+
+    /// 获取系统状态
+    pub async fn get_system_status(&self) -> Result<SystemStatus> {
+        self.system_monitor.get_system_status().await
+    }
+
+    /// 获取健康状态
+    pub async fn get_health_status(&self) -> Result<HealthStatus> {
+        self.health_checker.get_overall_health().await
+    }
+
+    /// 获取活跃告警
+    pub async fn get_active_alerts(&self) -> Result<Vec<Alert>> {
+        self.alert_manager.get_active_alerts().await
+    }
+
+    /// 健康检查
+    pub async fn health_check(&self) -> Result<MonitoringHealthStatus> {
+        let mut health_status = MonitoringHealthStatus {
+            overall_status: "healthy".to_string(),
+            components: HashMap::new(),
+        };
+
+        // 检查数据库连接
+        match self.engine.check_connection().await {
+            Ok(_) => {
+                health_status.components.insert(
+                    "database".to_string(),
+                    ComponentHealth {
+                        status: "healthy".to_string(),
+                        message: None,
+                    }
+                );
+            }
+            Err(e) => {
+                health_status.components.insert(
+                    "database".to_string(),
+                    ComponentHealth {
+                        status: "unhealthy".to_string(),
+                        message: Some(e.to_string()),
+                    }
+                );
+                health_status.overall_status = "unhealthy".to_string();
+            }
+        }
+
+        // 检查系统监控器
+        health_status.components.insert(
+            "system_monitor".to_string(),
+            ComponentHealth {
+                status: "healthy".to_string(),
+                message: None,
+            }
+        );
+
+        Ok(health_status)
+    }
+}
+
+/// 监控统计信息
+#[derive(Debug, Clone, Serialize)]
+pub struct MonitoringStats {
+    /// 收集的指标数量
+    pub metrics_collected: u64,
+    /// 执行的健康检查次数
+    pub health_checks_performed: u64,
+    /// 触发的告警次数
+    pub alerts_triggered: u64,
+    /// 活跃的监控任务数
+    pub active_monitors: u32,
+}
+
+/// 监控健康状态
+#[derive(Debug, Clone, Serialize)]
+pub struct MonitoringHealthStatus {
+    /// 整体状态
+    pub overall_status: String,
+    /// 组件状态
+    pub components: HashMap<String, ComponentHealth>,
+}
+
+/// 组件健康状态
+#[derive(Debug, Clone, Serialize)]
+pub struct ComponentHealth {
+    /// 状态
+    pub status: String,
+    /// 消息
+    pub message: Option<String>,
+}

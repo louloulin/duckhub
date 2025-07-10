@@ -101,6 +101,27 @@ impl DuckDBEngine {
         Ok(0)
     }
     
+    /// Execute SQL with parameters
+    pub async fn execute_with_params(&self, sql: &str, params: &[&str]) -> Result<ExecuteResult> {
+        let conn = self.connection.lock().await;
+        let rows_affected = conn.execute(sql, params)
+            .map_err(|e| DuckHubError::database(format!("Failed to execute SQL with params: {}", e)))?;
+
+        Ok(ExecuteResult { rows_affected })
+    }
+
+    /// Query with parameters
+    pub async fn query_with_params(&self, sql: &str, params: &[&str]) -> Result<QueryResult> {
+        let conn = self.connection.lock().await;
+        let stmt = conn.prepare(sql)
+            .map_err(|e| DuckHubError::database(format!("Failed to prepare SQL: {}", e)))?;
+
+        // Mock implementation for query with params
+        Ok(QueryResult {
+            rows: vec![],
+        })
+    }
+
     /// Check database connection
     pub async fn check_connection(&self) -> Result<bool> {
         let conn = self.connection.lock().await;
@@ -108,4 +129,16 @@ impl DuckDBEngine {
             .map(|_| true)
             .map_err(|e| DuckHubError::database(format!("Connection check failed: {}", e)))
     }
+}
+
+/// 查询结果
+#[derive(Debug)]
+pub struct QueryResult {
+    pub rows: Vec<HashMap<String, serde_json::Value>>,
+}
+
+/// 执行结果
+#[derive(Debug)]
+pub struct ExecuteResult {
+    pub rows_affected: usize,
 }

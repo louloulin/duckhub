@@ -2,12 +2,13 @@
 resolver = "2"
 members = [
     "crates/core/common",
-    "crates/core/config", 
+    "crates/core/config",
     "crates/core/database",
     "crates/core/cache",
     "crates/core/security",
+    "crates/services/auth",
     "crates/services/data-ingestion",
-    "crates/services/data-processing", 
+    "crates/services/data-processing",
     "crates/services/query-analytics",
     "crates/tools/cli",
 ]

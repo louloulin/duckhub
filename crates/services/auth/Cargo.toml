@@ -1,0 +1,61 @@
+[package]
+name = "duckhub-auth"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "DuckHub安全和权限管理系统 - RBAC权限模型、用户认证、API访问控制"
+
+[dependencies]
+# 核心依赖
+duckhub-common = { path = "../../core/common" }
+duckhub-database = { path = "../../core/database" }
+
+# 异步运行时
+tokio.workspace = true
+async-trait.workspace = true
+
+# 序列化
+serde.workspace = true
+serde_json.workspace = true
+
+# 错误处理
+anyhow.workspace = true
+thiserror.workspace = true
+
+# 日志
+tracing.workspace = true
+
+# 时间处理
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID生成
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# 密码哈希
+argon2 = "0.5"
+rand = "0.8"
+
+# JWT令牌
+jsonwebtoken = "9.2"
+
+# 验证
+validator = { version = "0.16", features = ["derive"] }
+
+# 指标监控
+prometheus = "0.13"
+
+# Base64编码
+base64 = "0.21"
+
+# 正则表达式
+regex = "1.10"
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio-test = "0.4"

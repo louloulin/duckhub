@@ -464,12 +464,12 @@ mod tests {
         let db_path = temp_dir.path().join("test.db");
 
         let config = duckhub_common::DatabaseConfig {
-            url: format!("sqlite://{}", db_path.display()),
-            max_connections: 10,
-            min_connections: 1,
-            connection_timeout: 30,
-            idle_timeout: 300,
-            max_lifetime: 1800,
+            duckdb_path: db_path.to_string_lossy().to_string(),
+            memory_limit: Some("1GB".to_string()),
+            threads: Some(2),
+            max_memory: Some("1GB".to_string()),
+            temp_directory: Some(temp_dir.path().to_string_lossy().to_string()),
+            extensions: vec![],
             pool: duckhub_common::PoolConfig::default(),
         };
 
