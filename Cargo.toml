@@ -33,7 +33,7 @@ actix-web = "4.4"
 actix-cors = "0.7"
 
 # Database
-duckdb = { version = "0.10", features = ["bundled"] }
+duckdb = { version = "0.8", features = ["bundled"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
 
 # Serialization
@@ -69,10 +69,10 @@ aws-sdk-s3 = "1.0"
 azure_storage = "0.19"
 azure_storage_blobs = "0.19"
 
-# Compression and formats
-parquet = "50.0"
-arrow = "50.0"
-arrow-flight = "50.0"
+# Compression and formats (temporarily disabled due to arrow-arith conflicts)
+# parquet = "48.0"
+# arrow = "48.0"
+# arrow-flight = "48.0"
 
 # Metrics and monitoring
 prometheus = "0.13"

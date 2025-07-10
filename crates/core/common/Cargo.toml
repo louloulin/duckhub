@@ -36,6 +36,15 @@ dashmap.workspace = true
 parking_lot.workspace = true
 url.workspace = true
 
+# Configuration
+config.workspace = true
+
+# Database (temporarily disabled due to arrow-arith conflicts)
+# duckdb.workspace = true
+
+# Cache
+redis.workspace = true
+
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile.workspace = true

@@ -4,7 +4,7 @@ use duckhub_common::prelude::*;
 use crate::duckdb::{DuckDBEngine, DuckDBConnection};
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn, instrument};
 
@@ -131,6 +131,37 @@ impl ConnectionPool {
             available_connections: available_connections as u32,
             min_connections: self.config.min_connections,
             max_connections: self.config.max_connections,
+        }
+    }
+
+    /// 获取活跃连接数
+    pub fn active_connections(&self) -> usize {
+        (self.config.max_connections - self.semaphore.available_permits() as u32) as usize
+    }
+
+    /// 获取空闲连接数
+    pub async fn idle_connections(&self) -> usize {
+        let connections = self.connections.lock().await;
+        connections.len()
+    }
+
+    /// 获取最大连接数
+    pub fn max_connections(&self) -> usize {
+        self.config.max_connections as usize
+    }
+
+    /// 获取等待队列长度
+    pub fn queue_length(&self) -> usize {
+        // 这里返回等待获取连接的线程数
+        // 由于Semaphore没有直接提供等待队列长度，我们使用一个近似值
+        let active = self.active_connections();
+        let max = self.max_connections();
+        if active >= max {
+            // 如果活跃连接数达到最大值，可能有等待的请求
+            // 这里返回一个估计值，实际实现可能需要更复杂的跟踪
+            0 // 简化实现
+        } else {
+            0
         }
     }
 

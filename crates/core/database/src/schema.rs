@@ -1,6 +1,7 @@
 //! Schema management and registry
 
 use duckhub_common::prelude::*;
+use duckhub_common::utils::now;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;

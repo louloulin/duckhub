@@ -1,6 +1,6 @@
 //! Error types and handling for DuckHub
 
-use std::fmt;
+
 use thiserror::Error;
 
 /// Main error type for DuckHub operations
@@ -158,6 +158,13 @@ impl DuckHubError {
         }
     }
 
+    /// Create an IO error
+    pub fn io<E: Into<std::io::Error>>(error: E) -> Self {
+        Self::Io {
+            source: error.into(),
+        }
+    }
+
     /// Check if this is a retryable error
     pub fn is_retryable(&self) -> bool {
         matches!(
@@ -192,17 +199,18 @@ impl DuckHubError {
 pub type Result<T> = std::result::Result<T, DuckHubError>;
 
 /// Convert from DuckDB errors
-impl From<duckdb::Error> for DuckHubError {
-    fn from(err: duckdb::Error) -> Self {
-        Self::Database {
-            message: err.to_string(),
-        }
-    }
-}
+// Temporarily disabled due to arrow-arith conflicts
+// impl From<::duckdb::Error> for DuckHubError {
+//     fn from(err: ::duckdb::Error) -> Self {
+//         Self::Database {
+//             message: err.to_string(),
+//         }
+//     }
+// }
 
 /// Convert from Redis errors
-impl From<redis::RedisError> for DuckHubError {
-    fn from(err: redis::RedisError) -> Self {
+impl From<::redis::RedisError> for DuckHubError {
+    fn from(err: ::redis::RedisError) -> Self {
         Self::Cache {
             message: err.to_string(),
         }

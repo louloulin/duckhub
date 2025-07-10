@@ -1,9 +1,0 @@
-/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/libfutures_lite-a87d9839f4019657.rmeta: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/future.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/prelude.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/stream.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/io.rs
-
-/Users/louloulin/Documents/augment-projects/duckhub/target/debug/deps/futures_lite-a87d9839f4019657.d: /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/lib.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/future.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/prelude.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/stream.rs /Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/io.rs
-
-/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/lib.rs:
-/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/future.rs:
-/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/prelude.rs:
-/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/stream.rs:
-/Users/louloulin/.cargo/registry/src/mirrors.ustc.edu.cn-5857e57f01837ef8/futures-lite-1.13.0/src/io.rs:

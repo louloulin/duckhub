@@ -1,6 +1,7 @@
 //! Data Lake integration for DuckDB Lake
 
 use duckhub_common::prelude::*;
+use duckhub_common::utils::{generate_id, now};
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, error, info, instrument};

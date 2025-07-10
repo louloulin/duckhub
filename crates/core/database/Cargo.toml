@@ -18,8 +18,8 @@ duckhub-common = { path = "../common" }
 tokio.workspace = true
 async-trait.workspace = true
 
-# Database
-duckdb.workspace = true
+# Database (temporarily disabled due to arrow-arith conflicts)
+# duckdb.workspace = true
 
 # Serialization
 serde.workspace = true
@@ -41,14 +41,15 @@ once_cell.workspace = true
 dashmap.workspace = true
 parking_lot.workspace = true
 
-# Object storage
-aws-sdk-s3.workspace = true
-azure_storage.workspace = true
-azure_storage_blobs.workspace = true
+# Object storage (temporarily disabled for faster development)
+# aws-sdk-s3.workspace = true
+# aws-config = "1.0"
+# azure_storage.workspace = true
+# azure_storage_blobs.workspace = true
 
-# Data formats
-parquet.workspace = true
-arrow.workspace = true
+# Data formats (temporarily disabled due to arrow-arith conflicts)
+# parquet.workspace = true
+# arrow.workspace = true
 
 # Metrics
 prometheus.workspace = true

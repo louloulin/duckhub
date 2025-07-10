@@ -1,10 +1,10 @@
 //! Core traits for DuckHub components
 
-use crate::{DuckHubError, Query, QueryResult, Result, Schema};
+use crate::{Query, QueryResult, Result, Schema};
 use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::HashMap;
-use uuid::Uuid;
+
 
 /// Trait for database connections and query execution
 #[async_trait]
@@ -48,7 +48,7 @@ pub trait DataSourceConnector: Send + Sync {
 #[async_trait]
 pub trait DataConnection: Send + Sync {
     /// Fetch data with optional query/filter
-    async fn fetch_data(&self, query: Option<&str>) -> Result<DataStream>;
+    async fn fetch_data(&self, query: Option<&str>) -> Result<Box<dyn DataStream + Send>>;
 
     /// Get schema information
     async fn get_schema(&self) -> Result<Schema>;

@@ -224,13 +224,13 @@ pub fn from_json_string<T: serde::de::DeserializeOwned>(json: &str) -> Result<T>
 pub async fn read_file_to_string(path: &std::path::Path) -> Result<String> {
     tokio::fs::read_to_string(path)
         .await
-        .map_err(|e| DuckHubError::io(e))
+        .map_err(|e| DuckHubError::Io { source: e })
 }
 
 pub async fn write_string_to_file(path: &std::path::Path, content: &str) -> Result<()> {
     tokio::fs::write(path, content)
         .await
-        .map_err(|e| DuckHubError::io(e))
+        .map_err(|e| DuckHubError::Io { source: e })
 }
 
 #[cfg(test)]

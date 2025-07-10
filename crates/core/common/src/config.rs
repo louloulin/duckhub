@@ -229,24 +229,24 @@ pub struct ConfigManager {
 impl ConfigManager {
     /// Load configuration from file and environment
     pub fn load() -> Result<Self> {
-        let mut config_builder = config::Config::builder();
+        let mut config_builder = ::config::Config::builder();
         
         // Load from default configuration
         config_builder = config_builder.add_source(
-            config::File::from_str(include_str!("../config/default.toml"), config::FileFormat::Toml)
+            ::config::File::from_str(include_str!("../config/default.toml"), ::config::FileFormat::Toml)
         );
         
         // Load from environment-specific config if exists
         if let Ok(env) = std::env::var("DUCKHUB_ENV") {
             let config_file = format!("config/{}.toml", env);
             if std::path::Path::new(&config_file).exists() {
-                config_builder = config_builder.add_source(config::File::with_name(&config_file));
+                config_builder = config_builder.add_source(::config::File::with_name(&config_file));
             }
         }
         
         // Override with environment variables
         config_builder = config_builder.add_source(
-            config::Environment::with_prefix("DUCKHUB")
+            ::config::Environment::with_prefix("DUCKHUB")
                 .separator("_")
                 .try_parsing(true)
         );
@@ -254,9 +254,9 @@ impl ConfigManager {
         let settings = config_builder.build()
             .map_err(|e| DuckHubError::config(format!("Failed to load configuration: {}", e)))?;
         
-        let config: AppConfig = settings.try_deserialize()
+        let config: AppConfig = settings.clone().try_deserialize()
             .map_err(|e| DuckHubError::config(format!("Failed to deserialize configuration: {}", e)))?;
-        
+
         let values = settings.try_deserialize::<HashMap<String, Value>>()
             .map_err(|e| DuckHubError::config(format!("Failed to get configuration values: {}", e)))?;
         
