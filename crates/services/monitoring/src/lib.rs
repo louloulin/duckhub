@@ -21,17 +21,17 @@ pub mod health;
 pub mod alerts;
 pub mod system;
 
-pub use metrics::*;
-pub use health::*;
-pub use alerts::*;
-pub use system::*;
+pub use metrics::{MetricsCollector as MonitoringMetricsCollector, MetricData, SystemMetrics, NetworkIO, DiskIO, LoadAverage, MetricType};
+pub use health::{HealthChecker, HealthCheck, HealthCheckType, HealthStatus as HealthStatusDetail, HealthStatusLevel, HealthCheckResult};
+pub use alerts::{AlertManager, AlertConfig, Alert, AlertRule, AlertCondition, AlertSeverity, AlertStatus, NotificationConfig, EmailConfig, WebhookConfig};
+pub use system::{SystemMonitor, SystemStatus, SystemInfo, CpuInfo, MemoryInfo, DiskInfo, NetworkInfo, ProcessInfo};
 
 /// 监控服务主结构
 pub struct MonitoringService {
     /// 数据库引擎
     engine: Arc<DuckDBEngine>,
     /// 指标收集器
-    metrics_collector: Arc<MetricsCollector>,
+    metrics_collector: Arc<MonitoringMetricsCollector>,
     /// 健康检查器
     health_checker: Arc<HealthChecker>,
     /// 告警管理器
@@ -151,7 +151,7 @@ impl MonitoringService {
         let metrics = MonitoringMetrics::new(registry)?;
 
         // 创建各个组件
-        let metrics_collector = Arc::new(MetricsCollector::new(Arc::clone(&engine)).await?);
+        let metrics_collector = Arc::new(MonitoringMetricsCollector::new(Arc::clone(&engine)).await?);
         let health_checker = Arc::new(HealthChecker::new(Arc::clone(&engine)).await?);
         let alert_manager = Arc::new(AlertManager::new(Arc::clone(&engine), config.alerts.clone()).await?);
         let system_monitor = Arc::new(SystemMonitor::new());
@@ -302,7 +302,7 @@ impl MonitoringService {
     }
 
     /// 获取健康状态
-    pub async fn get_health_status(&self) -> Result<HealthStatus> {
+    pub async fn get_health_status(&self) -> Result<HealthStatusDetail> {
         self.health_checker.get_overall_health().await
     }
 
@@ -383,4 +383,88 @@ pub struct ComponentHealth {
     pub status: String,
     /// 消息
     pub message: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use prometheus::Registry;
+    use tempfile::tempdir;
+
+    async fn create_test_engine() -> Arc<DuckDBEngine> {
+        let temp_dir = tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+
+        let config = duckhub_common::DatabaseConfig {
+            duckdb_path: db_path.to_string_lossy().to_string(),
+            memory_limit: Some("1GB".to_string()),
+            threads: Some(2),
+            max_memory: Some("1GB".to_string()),
+            temp_directory: Some(temp_dir.path().to_string_lossy().to_string()),
+            extensions: vec![],
+            pool: duckhub_common::PoolConfig::default(),
+        };
+
+        Arc::new(DuckDBEngine::new(config).await.unwrap())
+    }
+
+    #[tokio::test]
+    async fn test_monitoring_service_creation() {
+        let engine = create_test_engine().await;
+        let config = MonitoringConfig::default();
+        let registry = Registry::new();
+
+        let service = MonitoringService::new(engine, config, &registry).await;
+        assert!(service.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_system_metrics_collection() {
+        let system_monitor = SystemMonitor::new();
+        let metrics = system_monitor.collect_metrics().await.unwrap();
+
+        assert!(metrics.cpu_usage >= 0.0);
+        assert!(metrics.memory_usage >= 0.0);
+        assert!(metrics.disk_usage >= 0.0);
+        assert!(metrics.process_count > 0);
+    }
+
+    #[tokio::test]
+    async fn test_system_status() {
+        let system_monitor = SystemMonitor::new();
+        let status = system_monitor.get_system_status().await.unwrap();
+
+        assert!(!status.system_info.os_name.is_empty());
+        assert!(status.cpu_info.core_count > 0);
+        assert!(status.memory_info.total_memory > 0);
+        assert!(!status.disk_info.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_monitoring_stats() {
+        let engine = create_test_engine().await;
+        let config = MonitoringConfig::default();
+        let registry = Registry::new();
+
+        let service = MonitoringService::new(engine, config, &registry).await.unwrap();
+        let stats = service.get_monitoring_stats().await;
+
+        assert_eq!(stats.metrics_collected, 0);
+        assert_eq!(stats.health_checks_performed, 0);
+        assert_eq!(stats.alerts_triggered, 0);
+    }
+
+    #[tokio::test]
+    async fn test_health_check() {
+        let engine = create_test_engine().await;
+        let config = MonitoringConfig::default();
+        let registry = Registry::new();
+
+        let service = MonitoringService::new(engine, config, &registry).await.unwrap();
+        let health = service.health_check().await.unwrap();
+
+        assert_eq!(health.overall_status, "healthy");
+        assert!(health.components.contains_key("database"));
+        assert!(health.components.contains_key("system_monitor"));
+    }
 }

@@ -304,7 +304,7 @@ impl MetricsCollector {
         let result2 = self.engine.execute(&delete_system_metrics_sql).await?;
         
         info!("清理了过期的监控指标");
-        Ok(result1.rows_affected + result2.rows_affected)
+        Ok((result1 + result2) as u64)
     }
 
     /// 解析指标数据行
