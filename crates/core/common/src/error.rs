@@ -225,3 +225,10 @@ impl From<::prometheus::Error> for DuckHubError {
         }
     }
 }
+
+/// Convert from regex errors
+impl From<regex::Error> for DuckHubError {
+    fn from(err: regex::Error) -> Self {
+        Self::validation(format!("正则表达式错误: {}", err))
+    }
+}

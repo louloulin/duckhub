@@ -388,7 +388,7 @@ impl RecommendationEngine {
 
     /// 计算推荐置信度
     fn calculate_recommendation_confidence(&self, rule: &RecommendationRule, context: &RecommendationContext) -> f32 {
-        let mut confidence = 0.7; // 基础置信度
+        let mut confidence: f32 = 0.7; // 基础置信度
         
         // 根据查询历史调整置信度
         if !context.query_history.is_empty() {

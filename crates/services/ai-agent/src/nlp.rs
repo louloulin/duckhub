@@ -410,7 +410,7 @@ impl NLPProcessor {
 
     /// 计算上下文置信度
     fn calculate_context_confidence(&self, query: &str) -> f32 {
-        let mut confidence = 1.0;
+        let mut confidence: f32 = 1.0;
         
         // 如果查询包含金融相关关键词，提高置信度
         let financial_keywords = vec![
@@ -435,8 +435,9 @@ impl NLPProcessor {
     /// 生成SQL查询
     #[instrument(skip(self, parsed_query))]
     pub async fn generate_sql(&self, parsed_query: &ParsedQuery) -> Result<String> {
+        let default_table = "default_table".to_string();
         let table_name = parsed_query.table_name.as_ref()
-            .unwrap_or(&"default_table".to_string());
+            .unwrap_or(&default_table);
         
         let mut sql = String::new();
         

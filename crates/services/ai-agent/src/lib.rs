@@ -172,7 +172,7 @@ pub struct AIAgentResponse {
 }
 
 /// 响应类型
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum ResponseType {
     /// 自然语言查询结果
     NLPQuery,
@@ -390,4 +390,164 @@ pub enum HealthStatus {
     Healthy,
     /// 不健康
     Unhealthy,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use prometheus::Registry;
+    use tempfile::tempdir;
+
+    async fn create_test_engine() -> Arc<DuckDBEngine> {
+        let temp_dir = tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+
+        let config = duckhub_common::DatabaseConfig {
+            duckdb_path: db_path.to_string_lossy().to_string(),
+            memory_limit: Some("1GB".to_string()),
+            threads: Some(2),
+            max_memory: Some("1GB".to_string()),
+            temp_directory: Some(temp_dir.path().to_string_lossy().to_string()),
+            extensions: vec![],
+            pool: duckhub_common::PoolConfig::default(),
+        };
+
+        Arc::new(DuckDBEngine::new(config).await.unwrap())
+    }
+
+    async fn create_test_query_service() -> Arc<QueryAnalyticsService> {
+        let engine = create_test_engine().await;
+        let config = duckhub_query_analytics::QueryAnalyticsConfig::default();
+        let registry = Registry::new();
+
+        Arc::new(QueryAnalyticsService::new(engine, config, &registry).await.unwrap())
+    }
+
+    #[tokio::test]
+    async fn test_ai_agent_service_creation() {
+        let engine = create_test_engine().await;
+        let query_service = create_test_query_service().await;
+        let config = AIAgentConfig::default();
+        let registry = Registry::new();
+
+        let service = AIAgentService::new(engine, query_service, config, &registry).await;
+        assert!(service.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_nlp_query_processing() {
+        let engine = create_test_engine().await;
+        let query_service = create_test_query_service().await;
+        let config = AIAgentConfig::default();
+        let registry = Registry::new();
+
+        let service = AIAgentService::new(engine, query_service, config, &registry).await.unwrap();
+
+        let result = service.process_nlp_query("显示所有用户的数量").await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        assert_eq!(response.response_type, ResponseType::NLPQuery);
+        assert!(!response.content.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_recommendation_generation() {
+        let engine = create_test_engine().await;
+        let query_service = create_test_query_service().await;
+        let config = AIAgentConfig::default();
+        let registry = Registry::new();
+
+        let service = AIAgentService::new(engine, query_service, config, &registry).await.unwrap();
+
+        let context = RecommendationContext {
+            user_id: Some("test_user".to_string()),
+            current_query: Some("SELECT * FROM users".to_string()),
+            query_history: vec!["SELECT COUNT(*) FROM orders".to_string()],
+            table_info: HashMap::new(),
+            business_domain: Some("finance".to_string()),
+            time_range: None,
+        };
+
+        let result = service.generate_recommendations(&context).await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        assert_eq!(response.response_type, ResponseType::Recommendation);
+    }
+
+    #[tokio::test]
+    async fn test_automation_execution() {
+        let engine = create_test_engine().await;
+        let query_service = create_test_query_service().await;
+        let config = AIAgentConfig::default();
+        let registry = Registry::new();
+
+        let service = AIAgentService::new(engine, query_service, config, &registry).await.unwrap();
+
+        let task = AutomationTask {
+            task_id: "test_task".to_string(),
+            task_type: AutomationTaskType::DataQualityCheck,
+            name: "测试数据质量检查".to_string(),
+            description: "检查数据质量".to_string(),
+            parameters: HashMap::new(),
+            schedule: None,
+            enabled: true,
+            created_at: Utc::now(),
+        };
+
+        let result = service.execute_automation(&task).await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        assert_eq!(response.response_type, ResponseType::AutomationResult);
+    }
+
+    #[tokio::test]
+    async fn test_chat_message_processing() {
+        let engine = create_test_engine().await;
+        let query_service = create_test_query_service().await;
+        let config = AIAgentConfig::default();
+        let registry = Registry::new();
+
+        let service = AIAgentService::new(engine, query_service, config, &registry).await.unwrap();
+
+        let result = service.process_chat_message("session_001", "你好，我需要帮助").await;
+        assert!(result.is_ok());
+
+        let response = result.unwrap();
+        assert_eq!(response.response_type, ResponseType::ChatResponse);
+        assert!(!response.content.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_agent_stats() {
+        let engine = create_test_engine().await;
+        let query_service = create_test_query_service().await;
+        let config = AIAgentConfig::default();
+        let registry = Registry::new();
+
+        let service = AIAgentService::new(engine, query_service, config, &registry).await.unwrap();
+
+        let stats = service.get_agent_stats().await.unwrap();
+
+        assert!(stats.contains_key("nlp_queries_total"));
+        assert!(stats.contains_key("recommendations_total"));
+        assert!(stats.contains_key("automation_tasks_total"));
+        assert!(stats.contains_key("chat_messages_total"));
+        assert!(stats.contains_key("active_sessions"));
+    }
+
+    #[tokio::test]
+    async fn test_health_check() {
+        let engine = create_test_engine().await;
+        let query_service = create_test_query_service().await;
+        let config = AIAgentConfig::default();
+        let registry = Registry::new();
+
+        let service = AIAgentService::new(engine, query_service, config, &registry).await.unwrap();
+
+        let health = service.health_check().await.unwrap();
+        assert!(matches!(health, HealthStatus::Healthy));
+    }
 }

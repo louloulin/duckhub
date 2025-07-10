@@ -114,7 +114,7 @@ impl TimeSeriesAnalyzer {
 
         // 获取时间序列统计信息
         let stats = self.get_time_series_stats(table, time_column, value_column).await?;
-        
+
         // 转换为查询结果格式
         let mut result_data = Vec::new();
         let stats_json = serde_json::to_value(&stats)?;
@@ -132,6 +132,169 @@ impl TimeSeriesAnalyzer {
             cache_hit: false,
             execution_plan: Some("TimeSeriesAnalysis".to_string()),
             data: result_data,
+        })
+    }
+
+    /// 生成趋势分析查询
+    pub async fn generate_trend_analysis(&self, table: &str, time_column: &str, value_column: &str, period: &str) -> Result<QueryResult> {
+        let sql = format!(
+            r#"
+            WITH trend_data AS (
+                SELECT
+                    DATE_TRUNC('{period}', {time_column}) as period,
+                    AVG({value_column}) as avg_value,
+                    COUNT(*) as data_points,
+                    MIN({value_column}) as min_value,
+                    MAX({value_column}) as max_value,
+                    STDDEV({value_column}) as std_value
+                FROM {table}
+                WHERE {time_column} IS NOT NULL AND {value_column} IS NOT NULL
+                GROUP BY DATE_TRUNC('{period}', {time_column})
+                ORDER BY period
+            ),
+            trend_calculation AS (
+                SELECT
+                    period,
+                    avg_value,
+                    data_points,
+                    min_value,
+                    max_value,
+                    std_value,
+                    LAG(avg_value) OVER (ORDER BY period) as prev_avg,
+                    avg_value - LAG(avg_value) OVER (ORDER BY period) as period_change,
+                    CASE
+                        WHEN LAG(avg_value) OVER (ORDER BY period) > 0
+                        THEN (avg_value - LAG(avg_value) OVER (ORDER BY period)) / LAG(avg_value) OVER (ORDER BY period) * 100
+                        ELSE NULL
+                    END as percent_change,
+                    AVG(avg_value) OVER (ORDER BY period ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) as moving_avg_3,
+                    ROW_NUMBER() OVER (ORDER BY period) as time_index
+                FROM trend_data
+            )
+            SELECT
+                period,
+                avg_value,
+                data_points,
+                min_value,
+                max_value,
+                std_value,
+                prev_avg,
+                period_change,
+                percent_change,
+                moving_avg_3,
+                CASE
+                    WHEN period_change > 0 THEN 'Increasing'
+                    WHEN period_change < 0 THEN 'Decreasing'
+                    ELSE 'Stable'
+                END as trend_direction
+            FROM trend_calculation
+            ORDER BY period
+            "#,
+            table = table,
+            time_column = time_column,
+            value_column = value_column,
+            period = period
+        );
+
+        let data = self.engine.query(&sql).await?;
+
+        Ok(QueryResult {
+            query_id: Uuid::new_v4().to_string(),
+            execution_time_ms: 0,
+            row_count: data.len(),
+            optimized: false,
+            cache_hit: false,
+            execution_plan: Some("TrendAnalysis".to_string()),
+            data,
+        })
+    }
+
+    /// 生成季节性分析查询
+    pub async fn generate_seasonality_analysis(&self, table: &str, time_column: &str, value_column: &str) -> Result<QueryResult> {
+        let sql = format!(
+            r#"
+            WITH seasonal_data AS (
+                SELECT
+                    EXTRACT(MONTH FROM {time_column}) as month,
+                    EXTRACT(DOW FROM {time_column}) as day_of_week,
+                    EXTRACT(HOUR FROM {time_column}) as hour,
+                    AVG({value_column}) as avg_value,
+                    COUNT(*) as data_points,
+                    STDDEV({value_column}) as std_value
+                FROM {table}
+                WHERE {time_column} IS NOT NULL AND {value_column} IS NOT NULL
+                GROUP BY EXTRACT(MONTH FROM {time_column}), EXTRACT(DOW FROM {time_column}), EXTRACT(HOUR FROM {time_column})
+            ),
+            monthly_pattern AS (
+                SELECT
+                    month,
+                    AVG(avg_value) as monthly_avg,
+                    SUM(data_points) as monthly_points,
+                    STDDEV(avg_value) as monthly_std
+                FROM seasonal_data
+                GROUP BY month
+                ORDER BY month
+            ),
+            weekly_pattern AS (
+                SELECT
+                    day_of_week,
+                    AVG(avg_value) as weekly_avg,
+                    SUM(data_points) as weekly_points,
+                    STDDEV(avg_value) as weekly_std
+                FROM seasonal_data
+                GROUP BY day_of_week
+                ORDER BY day_of_week
+            ),
+            hourly_pattern AS (
+                SELECT
+                    hour,
+                    AVG(avg_value) as hourly_avg,
+                    SUM(data_points) as hourly_points,
+                    STDDEV(avg_value) as hourly_std
+                FROM seasonal_data
+                GROUP BY hour
+                ORDER BY hour
+            )
+            SELECT
+                'monthly' as pattern_type,
+                month as period_value,
+                monthly_avg as avg_value,
+                monthly_points as data_points,
+                monthly_std as std_value
+            FROM monthly_pattern
+            UNION ALL
+            SELECT
+                'weekly' as pattern_type,
+                day_of_week as period_value,
+                weekly_avg as avg_value,
+                weekly_points as data_points,
+                weekly_std as std_value
+            FROM weekly_pattern
+            UNION ALL
+            SELECT
+                'hourly' as pattern_type,
+                hour as period_value,
+                hourly_avg as avg_value,
+                hourly_points as data_points,
+                hourly_std as std_value
+            FROM hourly_pattern
+            ORDER BY pattern_type, period_value
+            "#,
+            table = table,
+            time_column = time_column,
+            value_column = value_column
+        );
+
+        let data = self.engine.query(&sql).await?;
+
+        Ok(QueryResult {
+            query_id: Uuid::new_v4().to_string(),
+            execution_time_ms: 0,
+            row_count: data.len(),
+            optimized: false,
+            cache_hit: false,
+            execution_plan: Some("SeasonalityAnalysis".to_string()),
+            data,
         })
     }
 

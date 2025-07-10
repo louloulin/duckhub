@@ -757,6 +757,7 @@ dependencies = [
  "parking_lot",
  "prometheus",
  "redis",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
