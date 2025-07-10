@@ -1,0 +1,53 @@
+[package]
+name = "duckhub-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "duckhub"
+path = "src/main.rs"
+
+[dependencies]
+# Core dependencies
+duckhub-common = { path = "../../core/common" }
+duckhub-database = { path = "../../core/database" }
+
+# CLI framework
+clap = { version = "4.4", features = ["derive"] }
+
+# Async runtime
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+anyhow.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Time and UUID
+uuid.workspace = true
+chrono.workspace = true
+
+# Table formatting
+tabled = "0.15"
+colored = "2.0"
+
+# Configuration
+config.workspace = true
+dotenvy.workspace = true
+
+# Table formatting
+tabled = "0.15"
+colored = "2.0"

@@ -1,0 +1,41 @@
+[package]
+name = "duckhub-security"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+# Core dependencies
+duckhub-common = { path = "../common" }
+
+# Async
+tokio.workspace = true
+async-trait.workspace = true
+
+# Security
+ring.workspace = true
+argon2.workspace = true
+jsonwebtoken.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Time
+chrono.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
