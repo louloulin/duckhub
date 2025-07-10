@@ -354,4 +354,96 @@ impl WindowFunctionProcessor {
 
         suggestions
     }
+
+    /// 生成高级排名查询
+    #[instrument(skip(self))]
+    pub async fn generate_advanced_ranking_query(
+        &self,
+        table: &str,
+        rank_column: &str,
+        partition_columns: &[String],
+        include_percentiles: bool,
+    ) -> Result<String> {
+        let partition_clause = if partition_columns.is_empty() {
+            String::new()
+        } else {
+            format!("PARTITION BY {}", partition_columns.join(", "))
+        };
+
+        let percentile_columns = if include_percentiles {
+            format!(
+                ",\n                   NTILE(4) OVER ({} ORDER BY {} DESC) as quartile,
+                   NTILE(10) OVER ({} ORDER BY {} DESC) as decile,
+                   CUME_DIST() OVER ({} ORDER BY {} DESC) as cumulative_distribution",
+                partition_clause, rank_column,
+                partition_clause, rank_column,
+                partition_clause, rank_column
+            )
+        } else {
+            String::new()
+        };
+
+        let query = format!(
+            r#"
+            SELECT *,
+                   ROW_NUMBER() OVER ({} ORDER BY {} DESC) as row_number,
+                   RANK() OVER ({} ORDER BY {} DESC) as rank,
+                   DENSE_RANK() OVER ({} ORDER BY {} DESC) as dense_rank,
+                   PERCENT_RANK() OVER ({} ORDER BY {} DESC) as percent_rank{}
+            FROM {}
+            ORDER BY {}
+            "#,
+            partition_clause, rank_column,
+            partition_clause, rank_column,
+            partition_clause, rank_column,
+            partition_clause, rank_column,
+            percentile_columns,
+            table,
+            rank_column
+        );
+
+        Ok(query)
+    }
+
+
+
+    /// 生成滑动窗口异常检测查询
+    #[instrument(skip(self))]
+    pub async fn generate_anomaly_detection_query(
+        &self,
+        table: &str,
+        value_column: &str,
+        order_column: &str,
+        window_size: usize,
+        std_threshold: f64,
+    ) -> Result<String> {
+        let query = format!(
+            r#"
+            WITH stats AS (
+                SELECT *,
+                       AVG({}) OVER (ORDER BY {} ROWS BETWEEN {} PRECEDING AND CURRENT ROW) as moving_avg,
+                       STDDEV({}) OVER (ORDER BY {} ROWS BETWEEN {} PRECEDING AND CURRENT ROW) as moving_stddev
+                FROM {}
+            )
+            SELECT *,
+                   ABS({} - moving_avg) as deviation,
+                   ABS({} - moving_avg) / NULLIF(moving_stddev, 0) as z_score,
+                   CASE
+                       WHEN ABS({} - moving_avg) / NULLIF(moving_stddev, 0) > {} THEN true
+                       ELSE false
+                   END as is_anomaly
+            FROM stats
+            ORDER BY {}
+            "#,
+            value_column, order_column, window_size - 1,
+            value_column, order_column, window_size - 1,
+            table,
+            value_column,
+            value_column,
+            value_column, std_threshold,
+            order_column
+        );
+
+        Ok(query)
+    }
 }

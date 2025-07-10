@@ -16,10 +16,20 @@ pub mod recommendations;
 pub mod automation;
 pub mod chat;
 
+// 基于Rig框架的AI Agent实现
+pub mod rig_agent;
+
+// 测试模块
+#[cfg(test)]
+mod rig_tests;
+
 pub use nlp::*;
 pub use recommendations::*;
 pub use automation::*;
 pub use chat::*;
+
+// 导出Rig相关组件
+pub use rig_agent::*;
 
 /// AI Agent服务
 pub struct AIAgentService {

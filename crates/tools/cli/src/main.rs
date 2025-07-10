@@ -56,32 +56,49 @@ enum Commands {
     Query {
         /// SQL query to execute
         sql: String,
-        
+
         /// Output format (table, json, csv)
         #[arg(short, long, default_value = "table")]
         format: String,
+
+        /// Save query to history
+        #[arg(long)]
+        save: bool,
     },
-    
+
+    /// Interactive query mode
+    Interactive {
+        /// Load query history
+        #[arg(long)]
+        with_history: bool,
+    },
+
+    /// Manage query history
+    History {
+        #[command(subcommand)]
+        action: HistoryAction,
+    },
+
     /// Manage database schema
     Schema {
         #[command(subcommand)]
         action: SchemaAction,
     },
-    
+
     /// Show database information
     Info,
-    
+
     /// Run performance tests
     Benchmark {
         /// Number of queries to run
         #[arg(short, long, default_value = "1000")]
         count: u32,
-        
+
         /// Number of concurrent connections
         #[arg(short, long, default_value = "1")]
         concurrency: u32,
     },
-    
+
     /// Manage data lake operations
     Lake {
         #[command(subcommand)]
@@ -93,24 +110,74 @@ enum Commands {
         #[command(subcommand)]
         action: DuckLakeAction,
     },
+
+    /// Export query results
+    Export {
+        /// SQL query to execute
+        sql: String,
+
+        /// Output file path
+        #[arg(short, long)]
+        output: String,
+
+        /// Export format (csv, json, parquet)
+        #[arg(short, long, default_value = "csv")]
+        format: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum HistoryAction {
+    /// List query history
+    List {
+        /// Number of recent queries to show
+        #[arg(short, long, default_value = "10")]
+        limit: u32,
+    },
+
+    /// Show specific query from history
+    Show {
+        /// Query ID
+        id: String,
+    },
+
+    /// Execute query from history
+    Execute {
+        /// Query ID
+        id: String,
+
+        /// Output format (table, json, csv)
+        #[arg(short, long, default_value = "table")]
+        format: String,
+    },
+
+    /// Clear query history
+    Clear,
+
+    /// Export query history
+    Export {
+        /// Output file path
+        #[arg(short, long)]
+        output: String,
+    },
 }
 
 #[derive(Subcommand)]
 enum SchemaAction {
     /// List all tables
     List,
-    
+
     /// Show table schema
     Show {
         /// Table name
         table: String,
     },
-    
+
     /// Create table from schema file
     Create {
         /// Table name
         table: String,
-        
+
         /// Schema file path (JSON)
         schema_file: String,
     },
@@ -239,8 +306,14 @@ async fn main() -> Result<()> {
     let engine = Arc::new(DuckDBEngine::new(config).await?);
 
     match cli.command {
-        Commands::Query { sql, format } => {
-            execute_query(engine, &sql, &format).await?;
+        Commands::Query { sql, format, save } => {
+            execute_query(engine, &sql, &format, save).await?;
+        }
+        Commands::Interactive { with_history } => {
+            run_interactive_mode(engine, with_history).await?;
+        }
+        Commands::History { action } => {
+            handle_history_action(engine, action).await?;
         }
         Commands::Schema { action } => {
             handle_schema_action(engine, action).await?;
@@ -257,12 +330,15 @@ async fn main() -> Result<()> {
         Commands::DuckLake { action } => {
             handle_ducklake_action(engine, action).await?;
         }
+        Commands::Export { sql, output, format } => {
+            export_query_results(engine, &sql, &output, &format).await?;
+        }
     }
 
     Ok(())
 }
 
-async fn execute_query(engine: Arc<DuckDBEngine>, sql: &str, format: &str) -> Result<()> {
+async fn execute_query(engine: Arc<DuckDBEngine>, sql: &str, format: &str, save: bool) -> Result<()> {
     println!("{}", "Executing query...".blue());
     
     let query = Query {
@@ -692,5 +768,438 @@ async fn handle_ducklake_action(engine: Arc<DuckDBEngine>, action: DuckLakeActio
         }
     }
 
+    Ok(())
+}
+
+// 查询历史管理
+use std::fs;
+use std::path::Path;
+use serde::{Serialize, Deserialize};
+use chrono::{DateTime, Utc};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct QueryHistoryEntry {
+    id: String,
+    sql: String,
+    timestamp: DateTime<Utc>,
+    execution_time_ms: u64,
+    row_count: u64,
+    success: bool,
+    error_message: Option<String>,
+}
+
+impl QueryHistoryEntry {
+    fn new(id: String, sql: String, execution_time_ms: u64, row_count: u64, success: bool, error_message: Option<String>) -> Self {
+        Self {
+            id,
+            sql,
+            timestamp: Utc::now(),
+            execution_time_ms,
+            row_count,
+            success,
+            error_message,
+        }
+    }
+}
+
+struct QueryHistoryManager {
+    history_file: String,
+}
+
+impl QueryHistoryManager {
+    fn new() -> Self {
+        let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let history_file = format!("{}/.duckhub_history.json", home_dir);
+        Self { history_file }
+    }
+
+    fn load_history(&self) -> Result<Vec<QueryHistoryEntry>> {
+        if !Path::new(&self.history_file).exists() {
+            return Ok(vec![]);
+        }
+
+        let content = fs::read_to_string(&self.history_file)?;
+        let history: Vec<QueryHistoryEntry> = serde_json::from_str(&content)
+            .unwrap_or_else(|_| vec![]);
+        Ok(history)
+    }
+
+    fn save_history(&self, history: &[QueryHistoryEntry]) -> Result<()> {
+        let content = serde_json::to_string_pretty(history)?;
+        fs::write(&self.history_file, content)?;
+        Ok(())
+    }
+
+    fn add_entry(&self, entry: QueryHistoryEntry) -> Result<()> {
+        let mut history = self.load_history()?;
+        history.push(entry);
+
+        // 保持最近1000条记录
+        if history.len() > 1000 {
+            let skip_count = history.len() - 1000;
+            history = history.into_iter().skip(skip_count).collect();
+        }
+
+        self.save_history(&history)?;
+        Ok(())
+    }
+
+    fn clear_history(&self) -> Result<()> {
+        if Path::new(&self.history_file).exists() {
+            fs::remove_file(&self.history_file)?;
+        }
+        Ok(())
+    }
+}
+
+// 交互式查询模式
+async fn run_interactive_mode(engine: Arc<DuckDBEngine>, with_history: bool) -> Result<()> {
+    use std::io::{self, Write};
+
+    println!("{}", "🚀 DuckHub Interactive Query Mode".green().bold());
+    println!("{}", "Type 'help' for commands, 'exit' to quit".yellow());
+
+    let history_manager = QueryHistoryManager::new();
+    let mut query_history = if with_history {
+        history_manager.load_history().unwrap_or_else(|_| vec![])
+    } else {
+        vec![]
+    };
+
+    loop {
+        print!("duckhub> ");
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+
+        if input.is_empty() {
+            continue;
+        }
+
+        match input {
+            "exit" | "quit" => {
+                println!("{}", "Goodbye! 👋".green());
+                break;
+            }
+            "help" => {
+                show_interactive_help();
+            }
+            "history" => {
+                show_query_history(&query_history);
+            }
+            "clear" => {
+                query_history.clear();
+                println!("{}", "Query history cleared.".yellow());
+            }
+            _ if input.starts_with("\\h ") => {
+                // 执行历史查询 \h <id>
+                let id = input.strip_prefix("\\h ").unwrap().trim();
+                if let Some(entry) = query_history.iter().find(|e| e.id.starts_with(id)).cloned() {
+                    println!("{}", format!("Executing: {}", entry.sql).blue());
+                    execute_interactive_query(engine.clone(), &entry.sql, &mut query_history, &history_manager).await;
+                } else {
+                    println!("{}", format!("Query with ID '{}' not found", id).red());
+                }
+            }
+            _ => {
+                // 执行SQL查询
+                execute_interactive_query(engine.clone(), input, &mut query_history, &history_manager).await;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn execute_interactive_query(
+    engine: Arc<DuckDBEngine>,
+    sql: &str,
+    query_history: &mut Vec<QueryHistoryEntry>,
+    history_manager: &QueryHistoryManager
+) {
+    let query_id = generate_id();
+    let start_time = std::time::Instant::now();
+
+    match engine.query(sql).await {
+        Ok(rows) => {
+            let execution_time = start_time.elapsed().as_millis() as u64;
+            let row_count = rows.len() as u64;
+
+            // 显示结果
+            if rows.is_empty() {
+                println!("{}", "Query returned 0 rows.".yellow());
+            } else {
+                display_query_results(&rows);
+            }
+
+            println!("{}", format!("✅ Query completed in {}ms, {} rows returned", execution_time, row_count).green());
+
+            // 保存到历史
+            let entry = QueryHistoryEntry::new(query_id.to_string(), sql.to_string(), execution_time, row_count, true, None);
+            query_history.push(entry.clone());
+            let _ = history_manager.add_entry(entry);
+        }
+        Err(e) => {
+            let execution_time = start_time.elapsed().as_millis() as u64;
+            println!("{}", format!("❌ Query failed: {}", e).red());
+
+            // 保存错误到历史
+            let entry = QueryHistoryEntry::new(query_id.to_string(), sql.to_string(), execution_time, 0, false, Some(e.to_string()));
+            query_history.push(entry.clone());
+            let _ = history_manager.add_entry(entry);
+        }
+    }
+}
+
+fn show_interactive_help() {
+    println!("{}", "📖 Interactive Commands:".blue().bold());
+    println!("  help          - Show this help message");
+    println!("  history       - Show query history");
+    println!("  clear         - Clear query history");
+    println!("  \\h <id>       - Execute query from history by ID");
+    println!("  exit/quit     - Exit interactive mode");
+    println!();
+    println!("{}", "💡 Tips:".yellow().bold());
+    println!("  - Type SQL queries directly");
+    println!("  - Use semicolon to end statements");
+    println!("  - Query history is automatically saved");
+}
+
+fn show_query_history(history: &[QueryHistoryEntry]) {
+    if history.is_empty() {
+        println!("{}", "No query history available.".yellow());
+        return;
+    }
+
+    println!("{}", "📜 Query History:".blue().bold());
+    println!("{:<8} {:<20} {:<8} {:<8} {:<50}", "ID", "Timestamp", "Time(ms)", "Rows", "SQL");
+    println!("{}", "-".repeat(100));
+
+    for entry in history.iter().rev().take(20) {
+        let status = if entry.success { "✅" } else { "❌" };
+        let short_id = &entry.id[..8];
+        let timestamp = entry.timestamp.format("%Y-%m-%d %H:%M:%S");
+        let sql_preview = if entry.sql.len() > 45 {
+            format!("{}...", &entry.sql[..45])
+        } else {
+            entry.sql.clone()
+        };
+
+        println!("{} {:<8} {:<20} {:<8} {:<8} {:<50}",
+            status, short_id, timestamp, entry.execution_time_ms, entry.row_count, sql_preview);
+    }
+}
+
+fn display_query_results(rows: &[std::collections::HashMap<String, serde_json::Value>]) {
+    if rows.is_empty() {
+        return;
+    }
+
+    let columns: Vec<String> = rows[0].keys().cloned().collect();
+
+    // 计算列宽
+    let mut col_widths: Vec<usize> = columns.iter().map(|c| c.len()).collect();
+    for row in rows.iter().take(100) { // 限制计算前100行以提高性能
+        for (i, col) in columns.iter().enumerate() {
+            if let Some(value) = row.get(col) {
+                let value_str = match value {
+                    serde_json::Value::Null => "NULL".to_string(),
+                    serde_json::Value::String(s) => s.clone(),
+                    _ => value.to_string(),
+                };
+                col_widths[i] = col_widths[i].max(value_str.len().min(30)); // 最大列宽30
+            }
+        }
+    }
+
+    // 打印表头
+    for (i, col) in columns.iter().enumerate() {
+        print!("{:width$}", col, width = col_widths[i]);
+        if i < columns.len() - 1 {
+            print!(" | ");
+        }
+    }
+    println!();
+
+    // 打印分隔线
+    for (i, &width) in col_widths.iter().enumerate() {
+        print!("{}", "-".repeat(width));
+        if i < col_widths.len() - 1 {
+            print!("-+-");
+        }
+    }
+    println!();
+
+    // 打印数据行（限制显示前50行）
+    let display_rows = rows.len().min(50);
+    for row in rows.iter().take(display_rows) {
+        for (i, col) in columns.iter().enumerate() {
+            let value_str = if let Some(value) = row.get(col) {
+                match value {
+                    serde_json::Value::Null => "NULL".to_string(),
+                    serde_json::Value::String(s) => s.clone(),
+                    _ => value.to_string(),
+                }
+            } else {
+                "".to_string()
+            };
+
+            let truncated = if value_str.len() > 30 {
+                format!("{}...", &value_str[..27])
+            } else {
+                value_str
+            };
+
+            print!("{:width$}", truncated, width = col_widths[i]);
+            if i < columns.len() - 1 {
+                print!(" | ");
+            }
+        }
+        println!();
+    }
+
+    if rows.len() > display_rows {
+        println!("{}", format!("... and {} more rows", rows.len() - display_rows).yellow());
+    }
+}
+
+// 历史管理命令处理
+async fn handle_history_action(_engine: Arc<DuckDBEngine>, action: HistoryAction) -> Result<()> {
+    let history_manager = QueryHistoryManager::new();
+
+    match action {
+        HistoryAction::List { limit } => {
+            let history = history_manager.load_history()?;
+            let recent_history: Vec<_> = history.iter().rev().take(limit as usize).collect();
+
+            if recent_history.is_empty() {
+                println!("{}", "No query history available.".yellow());
+                return Ok(());
+            }
+
+            println!("{}", "📜 Query History:".blue().bold());
+            println!("{:<10} {:<20} {:<8} {:<8} {:<6} {:<50}", "ID", "Timestamp", "Time(ms)", "Rows", "Status", "SQL");
+            println!("{}", "-".repeat(110));
+
+            for entry in recent_history {
+                let status = if entry.success { "✅" } else { "❌" };
+                let short_id = &entry.id[..8];
+                let timestamp = entry.timestamp.format("%Y-%m-%d %H:%M:%S");
+                let sql_preview = if entry.sql.len() > 45 {
+                    format!("{}...", &entry.sql[..45])
+                } else {
+                    entry.sql.clone()
+                };
+
+                println!("{:<10} {:<20} {:<8} {:<8} {:<6} {:<50}",
+                    short_id, timestamp, entry.execution_time_ms, entry.row_count, status, sql_preview);
+            }
+        }
+        HistoryAction::Show { id } => {
+            let history = history_manager.load_history()?;
+            if let Some(entry) = history.iter().find(|e| e.id.starts_with(&id)) {
+                println!("{}", "📋 Query Details:".blue().bold());
+                println!("ID: {}", entry.id);
+                println!("Timestamp: {}", entry.timestamp.format("%Y-%m-%d %H:%M:%S"));
+                println!("Execution Time: {}ms", entry.execution_time_ms);
+                println!("Row Count: {}", entry.row_count);
+                println!("Status: {}", if entry.success { "✅ Success" } else { "❌ Failed" });
+                if let Some(error) = &entry.error_message {
+                    println!("Error: {}", error.red());
+                }
+                println!("SQL:");
+                println!("{}", entry.sql);
+            } else {
+                println!("{}", format!("Query with ID '{}' not found", id).red());
+            }
+        }
+        HistoryAction::Execute { id, format } => {
+            let history = history_manager.load_history()?;
+            if let Some(entry) = history.iter().find(|e| e.id.starts_with(&id)) {
+                println!("{}", format!("Executing query from history: {}", entry.id).blue());
+                execute_query(_engine, &entry.sql, &format, false).await?;
+            } else {
+                println!("{}", format!("Query with ID '{}' not found", id).red());
+            }
+        }
+        HistoryAction::Clear => {
+            history_manager.clear_history()?;
+            println!("{}", "✅ Query history cleared.".green());
+        }
+        HistoryAction::Export { output } => {
+            let history = history_manager.load_history()?;
+            let content = serde_json::to_string_pretty(&history)?;
+            std::fs::write(&output, content)?;
+            println!("{}", format!("✅ Query history exported to {}", output).green());
+        }
+    }
+
+    Ok(())
+}
+
+// 导出查询结果
+async fn export_query_results(engine: Arc<DuckDBEngine>, sql: &str, output: &str, format: &str) -> Result<()> {
+    println!("{}", format!("Executing query for export...").blue());
+
+    let rows = engine.query(sql).await?;
+
+    match format {
+        "csv" => {
+            export_to_csv(&rows, output)?;
+        }
+        "json" => {
+            export_to_json(&rows, output)?;
+        }
+        "parquet" => {
+            // 对于Parquet，我们使用DuckDB的COPY命令
+            let copy_sql = format!("COPY ({}) TO '{}' (FORMAT PARQUET)", sql, output);
+            engine.execute(&copy_sql).await?;
+        }
+        _ => {
+            return Err(DuckHubError::validation(&format!("Unsupported export format: {}", format)));
+        }
+    }
+
+    println!("{}", format!("✅ Results exported to {} (format: {})", output, format).green());
+    Ok(())
+}
+
+fn export_to_csv(rows: &[std::collections::HashMap<String, serde_json::Value>], output: &str) -> Result<()> {
+    use std::fs::File;
+    use std::io::Write;
+
+    let mut file = File::create(output)?;
+
+    if rows.is_empty() {
+        return Ok(());
+    }
+
+    // 写入表头
+    let columns: Vec<String> = rows[0].keys().cloned().collect();
+    writeln!(file, "{}", columns.join(","))?;
+
+    // 写入数据行
+    for row in rows {
+        let values: Vec<String> = columns.iter()
+            .map(|col| {
+                let value = row.get(col).unwrap_or(&serde_json::Value::Null);
+                match value {
+                    serde_json::Value::String(s) => format!("\"{}\"", s.replace("\"", "\"\"")),
+                    serde_json::Value::Null => "".to_string(),
+                    _ => value.to_string(),
+                }
+            })
+            .collect();
+        writeln!(file, "{}", values.join(","))?;
+    }
+
+    Ok(())
+}
+
+fn export_to_json(rows: &[std::collections::HashMap<String, serde_json::Value>], output: &str) -> Result<()> {
+    let content = serde_json::to_string_pretty(rows)?;
+    std::fs::write(output, content)?;
     Ok(())
 }

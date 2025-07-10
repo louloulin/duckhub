@@ -10,15 +10,15 @@ duckhub-common = { path = "../../core/common" }
 duckhub-database = { path = "../../core/database" }
 duckhub-query-analytics = { path = "../query-analytics" }
 
+# Rig AI framework
+rig-core = "0.14.0"
+
 # Async runtime
 tokio = { version = "1.0", features = ["full"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
-# HTTP client
-reqwest = { version = "0.11", features = ["json"] }
 
 # Logging
 tracing = "0.1"
@@ -37,6 +37,14 @@ regex = "1.0"
 
 # Configuration
 config = "0.13"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Additional dependencies for Rig integration
+futures = "0.3"
+async-trait = "0.1"
 
 [dev-dependencies]
 tempfile = "3.0"

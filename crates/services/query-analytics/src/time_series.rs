@@ -702,4 +702,346 @@ impl TimeSeriesAnalyzer {
             data,
         })
     }
+
+    /// 生成时间序列预测查询
+    #[instrument(skip(self))]
+    pub async fn generate_forecasting_query(
+        &self,
+        table: &str,
+        time_column: &str,
+        value_column: &str,
+        forecast_periods: u32,
+        method: &str, // 'linear', 'exponential', 'moving_average'
+    ) -> Result<String> {
+        let query = match method {
+            "linear" => {
+                format!(
+                    r#"
+                    WITH historical_data AS (
+                        SELECT
+                            {},
+                            {},
+                            ROW_NUMBER() OVER (ORDER BY {}) as period_num
+                        FROM {}
+                        ORDER BY {}
+                    ),
+                    trend_calculation AS (
+                        SELECT
+                            COUNT(*) as n,
+                            SUM(period_num) as sum_x,
+                            SUM({}) as sum_y,
+                            SUM(period_num * {}) as sum_xy,
+                            SUM(period_num * period_num) as sum_x2
+                        FROM historical_data
+                    ),
+                    trend_params AS (
+                        SELECT
+                            (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x) as slope,
+                            (sum_y - ((n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)) * sum_x) / n as intercept,
+                            n as last_period
+                        FROM trend_calculation
+                    ),
+                    forecast_periods AS (
+                        SELECT generate_series(1, {}) as future_period
+                    )
+                    SELECT
+                        'forecast' as data_type,
+                        (last_period + future_period) as period,
+                        (intercept + slope * (last_period + future_period)) as predicted_value,
+                        NULL as actual_value
+                    FROM trend_params, forecast_periods
+                    UNION ALL
+                    SELECT
+                        'historical' as data_type,
+                        period_num as period,
+                        {} as predicted_value,
+                        {} as actual_value
+                    FROM historical_data
+                    ORDER BY period
+                    "#,
+                    time_column, value_column, time_column, table, time_column,
+                    value_column, value_column,
+                    forecast_periods,
+                    value_column, value_column
+                )
+            }
+            "moving_average" => {
+                format!(
+                    r#"
+                    WITH historical_data AS (
+                        SELECT
+                            {},
+                            {},
+                            ROW_NUMBER() OVER (ORDER BY {}) as period_num,
+                            AVG({}) OVER (ORDER BY {} ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) as ma_7
+                        FROM {}
+                        ORDER BY {}
+                    ),
+                    last_ma AS (
+                        SELECT ma_7 as last_moving_avg, MAX(period_num) as last_period
+                        FROM historical_data
+                        WHERE ma_7 IS NOT NULL
+                    ),
+                    forecast_periods AS (
+                        SELECT generate_series(1, {}) as future_period
+                    )
+                    SELECT
+                        'forecast' as data_type,
+                        (last_period + future_period) as period,
+                        last_moving_avg as predicted_value,
+                        NULL as actual_value
+                    FROM last_ma, forecast_periods
+                    UNION ALL
+                    SELECT
+                        'historical' as data_type,
+                        period_num as period,
+                        ma_7 as predicted_value,
+                        {} as actual_value
+                    FROM historical_data
+                    ORDER BY period
+                    "#,
+                    time_column, value_column, time_column, value_column, time_column, table, time_column,
+                    forecast_periods,
+                    value_column
+                )
+            }
+            "exponential" => {
+                format!(
+                    r#"
+                    WITH historical_data AS (
+                        SELECT
+                            {},
+                            {},
+                            ROW_NUMBER() OVER (ORDER BY {}) as period_num
+                        FROM {}
+                        ORDER BY {}
+                    ),
+                    exponential_smoothing AS (
+                        SELECT
+                            period_num,
+                            {},
+                            EXP(AVG(LN(NULLIF({}, 0))) OVER (ORDER BY {} ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)) as exp_smooth
+                        FROM historical_data
+                        WHERE {} > 0
+                    ),
+                    last_smooth AS (
+                        SELECT exp_smooth as last_exp_smooth, MAX(period_num) as last_period
+                        FROM exponential_smoothing
+                        WHERE exp_smooth IS NOT NULL
+                    ),
+                    forecast_periods AS (
+                        SELECT generate_series(1, {}) as future_period
+                    )
+                    SELECT
+                        'forecast' as data_type,
+                        (last_period + future_period) as period,
+                        last_exp_smooth as predicted_value,
+                        NULL as actual_value
+                    FROM last_smooth, forecast_periods
+                    UNION ALL
+                    SELECT
+                        'historical' as data_type,
+                        period_num as period,
+                        exp_smooth as predicted_value,
+                        {} as actual_value
+                    FROM exponential_smoothing
+                    ORDER BY period
+                    "#,
+                    time_column, value_column, time_column, table, time_column,
+                    value_column, value_column, time_column, value_column,
+                    forecast_periods,
+                    value_column
+                )
+            }
+            _ => return Err(DuckHubError::validation("Unsupported forecasting method")),
+        };
+
+        Ok(query)
+    }
+
+    /// 生成时间序列异常检测查询
+    #[instrument(skip(self))]
+    pub async fn generate_anomaly_detection_query(
+        &self,
+        table: &str,
+        time_column: &str,
+        value_column: &str,
+        window_size: u32,
+        sensitivity: f64, // 标准差倍数，通常为2.0或3.0
+    ) -> Result<String> {
+        let query = format!(
+            r#"
+            WITH time_series_stats AS (
+                SELECT
+                    {},
+                    {},
+                    AVG({}) OVER (ORDER BY {} ROWS BETWEEN {} PRECEDING AND CURRENT ROW) as rolling_mean,
+                    STDDEV({}) OVER (ORDER BY {} ROWS BETWEEN {} PRECEDING AND CURRENT ROW) as rolling_stddev,
+                    LAG({}, 1) OVER (ORDER BY {}) as prev_value,
+                    LEAD({}, 1) OVER (ORDER BY {}) as next_value
+                FROM {}
+                ORDER BY {}
+            ),
+            anomaly_detection AS (
+                SELECT *,
+                    ABS({} - rolling_mean) as deviation,
+                    ABS({} - rolling_mean) / NULLIF(rolling_stddev, 0) as z_score,
+                    CASE
+                        WHEN ABS({} - rolling_mean) / NULLIF(rolling_stddev, 0) > {} THEN 'outlier'
+                        WHEN {} IS NULL OR next_value IS NULL THEN 'boundary'
+                        WHEN ABS({} - prev_value) / NULLIF(prev_value, 0) > 0.5 THEN 'spike'
+                        ELSE 'normal'
+                    END as anomaly_type,
+                    CASE
+                        WHEN ABS({} - rolling_mean) / NULLIF(rolling_stddev, 0) > {} THEN true
+                        WHEN ABS({} - prev_value) / NULLIF(prev_value, 0) > 0.5 THEN true
+                        ELSE false
+                    END as is_anomaly
+                FROM time_series_stats
+            )
+            SELECT *,
+                CASE
+                    WHEN is_anomaly THEN 'ALERT'
+                    ELSE 'OK'
+                END as status
+            FROM anomaly_detection
+            ORDER BY {}
+            "#,
+            time_column, value_column,
+            value_column, time_column, window_size - 1,
+            value_column, time_column, window_size - 1,
+            value_column, time_column,
+            value_column, time_column,
+            table, time_column,
+            value_column,
+            value_column,
+            value_column, sensitivity,
+            value_column,
+            value_column,
+            value_column, sensitivity,
+            value_column,
+            time_column
+        );
+
+        Ok(query)
+    }
+
+    /// 生成时间序列相关性分析查询
+    #[instrument(skip(self))]
+    pub async fn generate_correlation_analysis_query(
+        &self,
+        table: &str,
+        time_column: &str,
+        value_columns: &[String],
+        lag_periods: &[i32],
+    ) -> Result<String> {
+        let mut correlation_columns = Vec::new();
+
+        for (i, col1) in value_columns.iter().enumerate() {
+            for (j, col2) in value_columns.iter().enumerate() {
+                if i <= j {
+                    for &lag in lag_periods {
+                        if lag == 0 {
+                            correlation_columns.push(format!(
+                                "CORR({}, {}) OVER () as corr_{}_{}_lag_0",
+                                col1, col2, col1, col2
+                            ));
+                        } else {
+                            correlation_columns.push(format!(
+                                "CORR({}, LAG({}, {}) OVER (ORDER BY {})) OVER () as corr_{}_{}_lag_{}",
+                                col1, col2, lag.abs(), time_column, col1, col2, lag
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        let query = format!(
+            r#"
+            SELECT
+                {},
+                {},
+                {}
+            FROM {}
+            ORDER BY {}
+            "#,
+            time_column,
+            value_columns.join(", "),
+            correlation_columns.join(",\n                "),
+            table,
+            time_column
+        );
+
+        Ok(query)
+    }
+
+    /// 生成时间序列分解查询（趋势、季节性、残差）
+    #[instrument(skip(self))]
+    pub async fn generate_decomposition_query(
+        &self,
+        table: &str,
+        time_column: &str,
+        value_column: &str,
+        seasonal_period: u32, // 季节周期，如12（月度数据）或7（日度数据）
+    ) -> Result<String> {
+        let query = format!(
+            r#"
+            WITH time_series_data AS (
+                SELECT
+                    {},
+                    {},
+                    ROW_NUMBER() OVER (ORDER BY {}) as period_num
+                FROM {}
+                ORDER BY {}
+            ),
+            trend_component AS (
+                SELECT *,
+                    AVG({}) OVER (ORDER BY {} ROWS BETWEEN {} PRECEDING AND {} FOLLOWING) as trend
+                FROM time_series_data
+            ),
+            detrended_data AS (
+                SELECT *,
+                    {} - trend as detrended_value
+                FROM trend_component
+            ),
+            seasonal_component AS (
+                SELECT *,
+                    AVG(detrended_value) OVER (PARTITION BY (period_num - 1) % {}) as seasonal
+                FROM detrended_data
+            ),
+            decomposed_series AS (
+                SELECT *,
+                    {} - trend - seasonal as residual,
+                    trend + seasonal as fitted_value,
+                    ABS({} - (trend + seasonal)) as absolute_error
+                FROM seasonal_component
+            )
+            SELECT
+                {},
+                {} as original_value,
+                trend,
+                seasonal,
+                residual,
+                fitted_value,
+                absolute_error,
+                CASE
+                    WHEN ABS(residual) > 2 * STDDEV(residual) OVER () THEN true
+                    ELSE false
+                END as is_outlier
+            FROM decomposed_series
+            ORDER BY {}
+            "#,
+            time_column, value_column, time_column, table, time_column,
+            value_column, time_column, seasonal_period / 2, seasonal_period / 2,
+            value_column,
+            seasonal_period,
+            value_column,
+            value_column,
+            time_column, value_column,
+            time_column
+        );
+
+        Ok(query)
+    }
 }
