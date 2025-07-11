@@ -253,7 +253,7 @@ pub async fn get_schema(
             let schema_info = SchemaInfo {
                 database: database_name,
                 tables,
-                version: schema.version,
+                version: schema.version as u32,
                 last_updated: schema.last_updated,
             };
 
@@ -292,11 +292,14 @@ pub async fn create_snapshot(
     let database_name = path.into_inner();
     info!("为数据库 {} 创建快照", database_name);
 
-    let create_request = duckhub_database::CreateSnapshotRequest {
+    let create_request = duckhub_common::types::CreateSnapshotRequest {
         database: database_name,
+        table: None,
         description: request.description.clone(),
-        include_all_tables: request.include_all_tables.unwrap_or(true),
-        tables: request.tables.clone().unwrap_or_default(),
+        include_all_tables: request.include_all_tables,
+        tables: request.tables.clone(),
+        compression_level: Some(6), // 默认压缩级别
+        include_metadata: Some(true), // 默认包含元数据
     };
 
     match app_state.engine.create_snapshot(create_request).await {

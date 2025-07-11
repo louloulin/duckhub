@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc, Duration};
 use tracing::{info, error, instrument};
 use crate::{AppState, success_response, error_response};
+use duckhub_common::DuckHubError;
 
 /// Dashboard数据响应
 #[derive(Debug, Serialize)]
@@ -198,7 +199,7 @@ pub async fn get_dashboard_data(app_state: web::Data<AppState>) -> ActixResult<H
 }
 
 /// 获取核心指标
-async fn get_core_metrics(app_state: &AppState) -> Result<CoreMetrics> {
+async fn get_core_metrics(app_state: &AppState) -> Result<CoreMetrics, DuckHubError> {
     // 从监控服务获取指标
     let monitoring_metrics = app_state.monitoring_service.get_metrics().await?;
     
@@ -211,22 +212,20 @@ async fn get_core_metrics(app_state: &AppState) -> Result<CoreMetrics> {
 }
 
 /// 获取查询趋势
-async fn get_query_trends(app_state: &AppState) -> Result<Vec<QueryTrendPoint>> {
-    let end_time = Utc::now();
-    let start_time = end_time - Duration::hours(24);
-    
+async fn get_query_trends(app_state: &AppState) -> Result<Vec<QueryTrendPoint>, DuckHubError> {
+    // 获取过去24小时的查询趋势
     let trends = app_state.analytics_service
-        .get_query_trends(start_time, end_time, Duration::hours(1))
+        .get_query_trends(24)
         .await?;
     
     Ok(trends.into_iter().map(|trend| QueryTrendPoint {
-        timestamp: trend.timestamp.format("%H:%M").to_string(),
-        value: trend.count,
+        timestamp: trend.get("time").and_then(|v| v.as_str()).unwrap_or("00:00").to_string(),
+        value: trend.get("queries").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
     }).collect())
 }
 
 /// 获取系统健康状态
-async fn get_system_health(app_state: &AppState) -> Result<SystemHealth> {
+async fn get_system_health(app_state: &AppState) -> Result<SystemHealth, DuckHubError> {
     let health_status = app_state.monitoring_service.get_health_status().await?;
     
     let components = vec![
@@ -271,7 +270,7 @@ async fn get_system_health(app_state: &AppState) -> Result<SystemHealth> {
 }
 
 /// 获取最近活动
-async fn get_recent_activities(app_state: &AppState) -> Result<Vec<Activity>> {
+async fn get_recent_activities(app_state: &AppState) -> Result<Vec<Activity>, DuckHubError> {
     let activities = app_state.monitoring_service.get_recent_activities(10).await?;
     
     Ok(activities.into_iter().map(|activity| Activity {
@@ -284,7 +283,7 @@ async fn get_recent_activities(app_state: &AppState) -> Result<Vec<Activity>> {
 }
 
 /// 获取性能统计
-async fn get_performance_stats(app_state: &AppState) -> Result<PerformanceStats> {
+async fn get_performance_stats(app_state: &AppState) -> Result<PerformanceStats, DuckHubError> {
     let perf_data = app_state.analytics_service.get_performance_statistics().await?;
     
     let query_performance_distribution = vec![

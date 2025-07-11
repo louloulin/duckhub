@@ -20,10 +20,12 @@ async-trait.workspace = true
 
 # Caching
 redis.workspace = true
+sled = "0.34"
 
 # Serialization
 serde.workspace = true
 serde_json.workspace = true
+bincode = "1.3"
 
 # Error handling
 anyhow.workspace = true

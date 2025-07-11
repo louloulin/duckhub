@@ -41,6 +41,50 @@ pub use rig_agent::*;
 // 导出新的RAG系统
 pub use rig_rag::*;
 
+/// 聊天请求
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatRequest {
+    pub message: String,
+    pub context: Option<String>,
+    pub session_id: Option<String>,
+}
+
+/// 分析请求
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalysisRequest {
+    pub query: String,
+    pub analysis_type: AnalysisType,
+    pub context: Option<String>,
+}
+
+/// 建议请求
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuggestRequest {
+    pub query: String,
+    pub query_type: QueryType,
+    pub context: Option<String>,
+}
+
+/// 分析类型
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AnalysisType {
+    Performance,
+    Schema,
+    Query,
+    Data,
+}
+
+/// 查询类型
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum QueryType {
+    Select,
+    Insert,
+    Update,
+    Delete,
+    Create,
+    Alter,
+}
+
 /// AI Agent服务
 pub struct AIAgentService {
     /// 数据库引擎
@@ -400,6 +444,72 @@ impl AIAgentService {
                 Ok(HealthStatus::Unhealthy)
             }
         }
+    }
+
+    /// 聊天对话
+    #[instrument(skip(self))]
+    pub async fn chat(&self, request: ChatRequest) -> Result<serde_json::Value> {
+        info!("处理聊天请求: {}", request.message);
+
+        // 模拟AI聊天响应
+        Ok(serde_json::json!({
+            "response": "我理解您的需求。基于DuckLake的强大功能，我可以为您提供数据查询、版本管理和性能优化建议。",
+            "timestamp": chrono::Utc::now(),
+            "session_id": request.session_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+            "metadata": {
+                "sql_query": "SELECT * FROM transactions WHERE amount > 1000",
+                "execution_time": 125,
+                "result_count": 1250
+            }
+        }))
+    }
+
+    /// 数据分析
+    #[instrument(skip(self))]
+    pub async fn analyze(&self, request: AnalysisRequest) -> Result<serde_json::Value> {
+        info!("处理分析请求: {:?}", request.analysis_type);
+
+        let analysis_result = match request.analysis_type {
+            AnalysisType::Performance => "查询性能分析：建议为user_id字段添加索引，预计可提升查询速度40%",
+            AnalysisType::Schema => "Schema分析：建议为transactions表添加status字段，这是一个向后兼容的安全操作",
+            AnalysisType::Query => "查询分析：发现可优化的JOIN操作，建议重写为子查询以提升性能",
+            AnalysisType::Data => "数据分析：检测到数据质量问题，建议清理重复记录",
+        };
+
+        Ok(serde_json::json!({
+            "analysis_type": request.analysis_type,
+            "result": analysis_result,
+            "recommendations": [
+                "优化建议1：添加索引",
+                "优化建议2：重构查询",
+                "优化建议3：数据清理"
+            ],
+            "confidence": 0.85,
+            "timestamp": chrono::Utc::now()
+        }))
+    }
+
+    /// 查询建议
+    #[instrument(skip(self))]
+    pub async fn suggest(&self, request: SuggestRequest) -> Result<serde_json::Value> {
+        info!("处理建议请求: {:?}", request.query_type);
+
+        let suggestion = match request.query_type {
+            QueryType::Select => "建议使用LIMIT子句限制返回结果数量，避免内存溢出",
+            QueryType::Insert => "建议使用批量插入以提升性能",
+            QueryType::Update => "建议在WHERE子句中使用索引字段",
+            QueryType::Delete => "建议先备份数据再执行删除操作",
+            QueryType::Create => "建议为主键和外键字段创建索引",
+            QueryType::Alter => "建议在低峰期执行表结构变更",
+        };
+
+        Ok(serde_json::json!({
+            "query_type": request.query_type,
+            "suggestion": suggestion,
+            "optimized_query": format!("-- 优化后的查询\n{}", request.query),
+            "performance_impact": "预计性能提升30-50%",
+            "timestamp": chrono::Utc::now()
+        }))
     }
 }
 

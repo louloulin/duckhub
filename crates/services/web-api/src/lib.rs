@@ -127,10 +127,10 @@ impl WebApiService {
                 .configure(configure_routes)
         })
         .bind(&bind_address)
-        .map_err(|e| DuckHubError::io(format!("绑定地址失败: {}", e)))?
+        .map_err(|e| DuckHubError::network(format!("绑定地址失败: {}", e)))?
         .run()
         .await
-        .map_err(|e| DuckHubError::io(format!("启动服务器失败: {}", e)))?;
+        .map_err(|e| DuckHubError::network(format!("启动服务器失败: {}", e)))?;
 
         Ok(())
     }

@@ -1,0 +1,37 @@
+[package]
+name = "duckhub-security"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "DuckHub安全和认证服务"
+
+[dependencies]
+# Workspace dependencies
+duckhub-common = { path = "../../core/common" }
+duckhub-database = { path = "../../core/database" }
+
+# Async runtime
+tokio.workspace = true
+async-trait.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Authentication and security
+jsonwebtoken = "9.2"
+bcrypt = "0.15"
+uuid.workspace = true
+chrono.workspace = true
+
+# HTTP
+actix-web.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true

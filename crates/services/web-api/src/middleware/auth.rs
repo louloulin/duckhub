@@ -116,8 +116,8 @@ where
                     "error": "认证失败，请提供有效的访问令牌",
                     "code": 401
                 }));
-            
-            Ok(req.into_response(response))
+
+            Ok(req.into_response(response).map_into_boxed_body().map_into_right_body())
         })
     }
 }

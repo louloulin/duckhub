@@ -70,7 +70,7 @@ where
             let mut res = fut.await?;
             res.headers_mut().insert(
                 actix_web::http::header::HeaderName::from_static("x-request-id"),
-                actix_web::http::HeaderValue::from_str(&request_id).unwrap(),
+                actix_web::http::header::HeaderValue::from_str(&request_id).unwrap(),
             );
             Ok(res)
         })

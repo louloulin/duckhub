@@ -30,6 +30,25 @@ pub use connectors::{DataConnector, WriteResult, ConnectorStats, MySQLConnector,
 pub use scheduler::{TaskScheduler, TaskDefinition, ScheduledTask, TaskStatus, TaskStats, SchedulerConfig};
 pub use config::{IngestionConfig, DataSourceConfig, ProcessorConfig, MonitoringConfig, ProcessorType};
 
+/// 创建数据源请求
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSourceRequest {
+    pub name: String,
+    pub source_type: String,
+    pub config: serde_json::Value,
+    pub description: Option<String>,
+    pub enabled: Option<bool>,
+}
+
+/// 更新数据源请求
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateSourceRequest {
+    pub name: Option<String>,
+    pub config: Option<serde_json::Value>,
+    pub description: Option<String>,
+    pub enabled: Option<bool>,
+}
+
 /// 数据采集服务主结构
 pub struct DataIngestionService {
     /// 数据库引擎
@@ -400,6 +419,63 @@ impl DataIngestionService {
         }
 
         Ok(health_status)
+    }
+
+    /// 列出所有数据源
+    #[instrument(skip(self))]
+    pub async fn list_sources(&self) -> Result<Vec<serde_json::Value>> {
+        let sources = self.sources.read().await;
+        let mut source_list = Vec::new();
+
+        for (name, _source) in sources.iter() {
+            source_list.push(serde_json::json!({
+                "name": name,
+                "type": "kafka", // 示例类型
+                "status": "active",
+                "created_at": chrono::Utc::now(),
+            }));
+        }
+
+        Ok(source_list)
+    }
+
+    /// 创建新的数据源
+    #[instrument(skip(self))]
+    pub async fn create_source(&self, request: CreateSourceRequest) -> Result<serde_json::Value> {
+        info!("创建数据源: {}", request.name);
+
+        // 这里应该根据source_type创建相应的数据源
+        // 目前返回模拟响应
+        Ok(serde_json::json!({
+            "id": uuid::Uuid::new_v4(),
+            "name": request.name,
+            "type": request.source_type,
+            "status": "created",
+            "created_at": chrono::Utc::now(),
+        }))
+    }
+
+    /// 更新数据源
+    #[instrument(skip(self))]
+    pub async fn update_source(&self, source_id: &str, request: UpdateSourceRequest) -> Result<serde_json::Value> {
+        info!("更新数据源: {}", source_id);
+
+        Ok(serde_json::json!({
+            "id": source_id,
+            "name": request.name.unwrap_or_else(|| "updated_source".to_string()),
+            "status": "updated",
+            "updated_at": chrono::Utc::now(),
+        }))
+    }
+
+    /// 删除数据源
+    #[instrument(skip(self))]
+    pub async fn delete_source(&self, source_id: &str) -> Result<()> {
+        info!("删除数据源: {}", source_id);
+
+        // 这里应该实际删除数据源
+        // 目前只是记录日志
+        Ok(())
     }
 }
 

@@ -4,6 +4,7 @@ use actix_web::{web, HttpResponse, Result as ActixResult};
 use serde_json::json;
 use tracing::{info, error, instrument};
 use prometheus::{Encoder, TextEncoder};
+use duckhub_cache::Cache;
 use crate::{AppState, success_response, error_response};
 
 /// 健康检查
@@ -86,9 +87,9 @@ pub async fn metrics_handler(app_state: web::Data<AppState>) -> ActixResult<Http
 pub async fn system_info(app_state: web::Data<AppState>) -> ActixResult<HttpResponse> {
     let system_info = json!({
         "version": env!("CARGO_PKG_VERSION"),
-        "build_time": env!("BUILD_TIME"),
-        "git_commit": env!("GIT_COMMIT"),
-        "rust_version": env!("RUST_VERSION"),
+        "build_time": std::env::var("BUILD_TIME").unwrap_or_else(|_| "unknown".to_string()),
+        "git_commit": std::env::var("GIT_COMMIT").unwrap_or_else(|_| "unknown".to_string()),
+        "rust_version": std::env::var("RUST_VERSION").unwrap_or_else(|_| "unknown".to_string()),
         "uptime": get_uptime(),
         "memory_usage": get_memory_usage(),
         "cpu_usage": get_cpu_usage(),

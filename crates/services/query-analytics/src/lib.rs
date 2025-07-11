@@ -291,6 +291,30 @@ impl QueryAnalyticsService {
             }
         }
     }
+
+    /// 获取查询趋势数据
+    #[instrument(skip(self))]
+    pub async fn get_query_trends(&self, hours: u32) -> Result<Vec<serde_json::Value>> {
+        info!("获取{}小时的查询趋势数据", hours);
+
+        // 模拟查询趋势数据
+        let mut trends = Vec::new();
+        let now = chrono::Utc::now();
+
+        for i in 0..hours {
+            let time = now - chrono::Duration::hours(i as i64);
+            trends.push(serde_json::json!({
+                "time": time.format("%H:%M").to_string(),
+                "queries": 120 + (i * 10) % 100,
+                "avg_time": 85.0 + (i as f64 * 2.5) % 30.0,
+                "success_rate": 0.95 + (i as f64 * 0.01) % 0.05,
+                "cache_hit_rate": 0.75 + (i as f64 * 0.02) % 0.20,
+            }));
+        }
+
+        trends.reverse(); // 按时间顺序排列
+        Ok(trends)
+    }
 }
 
 #[cfg(test)]

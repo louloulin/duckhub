@@ -314,3 +314,105 @@ impl Default for PoolConfig {
         }
     }
 }
+
+// DuckLake related types
+
+/// Database information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabaseInfo {
+    pub id: String,
+    pub name: String,
+    pub status: String,
+    pub size: String,
+    pub created_at: DateTime<Utc>,
+    pub last_accessed: Option<DateTime<Utc>>,
+}
+
+/// Snapshot information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnapshotInfo {
+    pub id: String,
+    pub version: u64,
+    pub created_at: DateTime<Utc>,
+    pub size: String,
+    pub description: Option<String>,
+    pub size_bytes: u64,                   // 新增
+    pub table_count: u32,                  // 新增
+    pub compression_ratio: f64,            // 新增
+    pub checksum: String,                  // 新增
+}
+
+/// Schema information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SchemaInfo {
+    pub tables: Vec<TableInfo>,
+    pub version: u64,                      // 新增
+    pub last_updated: DateTime<Utc>,       // 新增
+    pub database_name: String,             // 新增
+    pub total_tables: u32,                 // 新增
+    pub total_size_bytes: u64,             // 新增
+}
+
+/// Table information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TableInfo {
+    pub name: String,
+    pub columns: Vec<ColumnInfo>,
+    pub row_count: u64,                    // 新增
+    pub size_bytes: u64,                   // 新增
+    pub created_at: DateTime<Utc>,         // 新增
+    pub last_updated: DateTime<Utc>,       // 新增
+    pub table_type: String,                // 新增
+    pub engine: String,                    // 新增
+}
+
+/// Column information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ColumnInfo {
+    pub name: String,
+    pub data_type: String,
+    pub nullable: bool,
+    pub default_value: Option<String>,  // 新增
+    pub comment: Option<String>,        // 新增
+    pub is_primary_key: bool,          // 新增
+    pub is_foreign_key: bool,          // 新增
+    pub max_length: Option<u32>,       // 新增
+}
+
+/// Time travel query request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeTravelQueryRequest {
+    pub database: String,
+    pub table: String,
+    pub target: TimeTravelTarget,
+    pub sql: String,
+}
+
+/// Time travel target
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TimeTravelTarget {
+    Version(u64),
+    Timestamp(DateTime<Utc>),
+    TimeRange { start: DateTime<Utc>, end: DateTime<Utc> },
+}
+
+/// Time travel query response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeTravelQueryResponse {
+    pub query_id: String,
+    pub execution_time_ms: u64,
+    pub row_count: usize,
+    pub results: Vec<serde_json::Value>,
+}
+
+/// Create snapshot request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSnapshotRequest {
+    pub database: String,
+    pub table: Option<String>,
+    pub description: Option<String>,
+    pub include_all_tables: Option<bool>,  // 新增
+    pub tables: Option<Vec<String>>,       // 新增
+    pub compression_level: Option<u8>,     // 新增
+    pub include_metadata: Option<bool>,    // 新增
+}
