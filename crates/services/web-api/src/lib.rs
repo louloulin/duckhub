@@ -244,6 +244,24 @@ fn configure_routes(cfg: &mut web::ServiceConfig) {
                 .route("/metrics/export", web::post().to(export_metrics))
         )
 
+        // 文件处理相关
+        .service(
+            web::scope("/api/v1/files")
+                .route("/upload", web::post().to(upload_file))
+                .route("/export", web::post().to(export_data))
+                .route("/import", web::post().to(import_data))
+                .route("/preview", web::post().to(preview_file))
+                .route("/{file_id}", web::get().to(get_file_info))
+        )
+
+        // 实时功能相关
+        .service(
+            web::scope("/api/v1/realtime")
+                .route("/ws", web::get().to(websocket_handler))
+                .route("/metrics", web::get().to(get_real_time_metrics))
+                .route("/query", web::post().to(get_live_query_results))
+        )
+
         // DuckLake相关
         .service(
             web::scope("/api/v1/ducklake")

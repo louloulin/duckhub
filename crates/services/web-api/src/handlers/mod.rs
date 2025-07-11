@@ -11,6 +11,8 @@ pub mod data;
 pub mod dashboard;
 pub mod analytics;
 pub mod system;
+pub mod files;
+pub mod realtime;
 
 pub use auth::*;
 pub use query::*;
@@ -23,6 +25,8 @@ pub use data::*;
 pub use dashboard::*;
 pub use analytics::*;
 pub use system::*;
+pub use files::*;
+pub use realtime::*;
 
 use actix_web::{web, HttpResponse, Result as ActixResult};
 use serde_json::json;
