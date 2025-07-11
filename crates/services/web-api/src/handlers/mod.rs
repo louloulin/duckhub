@@ -9,6 +9,8 @@ pub mod ducklake;
 pub mod health;
 pub mod data;
 pub mod dashboard;
+pub mod analytics;
+pub mod system;
 
 pub use auth::*;
 pub use query::*;
@@ -19,6 +21,8 @@ pub use ducklake::*;
 pub use health::*;
 pub use data::*;
 pub use dashboard::*;
+pub use analytics::*;
+pub use system::*;
 
 use actix_web::{web, HttpResponse, Result as ActixResult};
 use serde_json::json;

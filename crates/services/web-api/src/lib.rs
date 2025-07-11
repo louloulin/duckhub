@@ -223,6 +223,27 @@ fn configure_routes(cfg: &mut web::ServiceConfig) {
                 .route("/system-health", web::get().to(get_system_health_dashboard))
         )
 
+        // 高级分析相关
+        .service(
+            web::scope("/api/v1/analytics")
+                .route("/time-series", web::post().to(analyze_time_series))
+                .route("/window-functions", web::post().to(analyze_window_functions))
+                .route("/ranking", web::post().to(analyze_ranking))
+                .route("/moving-average", web::post().to(analyze_moving_average))
+        )
+
+        // 系统管理相关
+        .service(
+            web::scope("/api/v1/system")
+                .route("/config", web::get().to(get_system_config))
+                .route("/config", web::put().to(update_system_config))
+                .route("/config/validate", web::post().to(validate_config))
+                .route("/config/reload", web::post().to(reload_config))
+                .route("/metrics/detailed", web::get().to(get_detailed_metrics))
+                .route("/metrics/history", web::get().to(get_performance_history))
+                .route("/metrics/export", web::post().to(export_metrics))
+        )
+
         // DuckLake相关
         .service(
             web::scope("/api/v1/ducklake")
