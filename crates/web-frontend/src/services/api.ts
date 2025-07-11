@@ -106,4 +106,31 @@ export const systemAPI = {
   updateConfig: (config: any) => api.put('/system/config', config),
 }
 
+// DuckLake指标API
+export const duckLakeAPI = {
+  // 获取DuckLake核心指标
+  getMetrics: (timeRange?: string) =>
+    api.get('/v1/ducklake/metrics', { params: { range: timeRange } }),
+
+  // 获取性能历史数据
+  getPerformanceHistory: (timeRange?: string) =>
+    api.get('/v1/ducklake/metrics/performance', { params: { range: timeRange } }),
+
+  // 数据库管理
+  getDatabases: () => api.get('/v1/ducklake/databases'),
+  createDatabase: (config: any) => api.post('/v1/ducklake/databases', config),
+  updateDatabase: (id: string, config: any) => api.put(`/v1/ducklake/databases/${id}`, config),
+  deleteDatabase: (id: string) => api.delete(`/v1/ducklake/databases/${id}`),
+
+  // 快照管理
+  getSnapshots: (params?: any) => api.get('/v1/ducklake/snapshots', { params }),
+  createSnapshot: (request: any) => api.post('/v1/ducklake/snapshots', request),
+  deleteSnapshot: (id: string) => api.delete(`/v1/ducklake/snapshots/${id}`),
+  restoreSnapshot: (id: string) => api.post(`/v1/ducklake/snapshots/${id}/restore`),
+
+  // 版本控制
+  getVersions: (params?: any) => api.get('/v1/ducklake/versions', { params }),
+  rollbackVersion: (version: number) => api.post(`/v1/ducklake/versions/${version}/rollback`),
+}
+
 export default api

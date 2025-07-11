@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import Layout from './components/Layout'
@@ -7,8 +8,14 @@ import DataExplorer from './pages/DataExplorer'
 import AIAgent from './pages/AIAgent'
 import Settings from './pages/Settings'
 import DuckLakeManager from './pages/DuckLakeManager'
+import { initializeAuth } from './utils/auth'
 
 function App() {
+  useEffect(() => {
+    // 初始化认证状态
+    initializeAuth().catch(console.error)
+  }, [])
+
   return (
     <div className="min-h-screen bg-background">
       <Layout>

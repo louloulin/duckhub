@@ -7,6 +7,8 @@ import {
   fetchPerformanceData,
   fetchSystemHealth,
 } from '@/store/slices/dashboardSlice'
+import { duckLakeAPI } from '@/services/api'
+import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -75,39 +77,59 @@ export default function Dashboard() {
   )
 
   const [activeTab, setActiveTab] = useState('overview')
-  const [duckLakeMetrics] = useState<DuckLakeMetrics>({
-    activeDatabases: 3,
-    totalSnapshots: 127,
-    timeTravelQueries: 1250,
-    schemaEvolutions: 15,
-    queryPerformance: [
-      { time: '00:00', version: 125, avgResponseTime: 120, throughput: 850 },
-      { time: '04:00', version: 125, avgResponseTime: 115, throughput: 920 },
-      { time: '08:00', version: 126, avgResponseTime: 108, throughput: 1100 },
-      { time: '12:00', version: 126, avgResponseTime: 95, throughput: 1350 },
-      { time: '16:00', version: 127, avgResponseTime: 88, throughput: 1420 },
-      { time: '20:00', version: 127, avgResponseTime: 92, throughput: 1380 },
-    ],
-    snapshotActivity: [
-      { time: '周一', created: 12, deleted: 2 },
-      { time: '周二', created: 15, deleted: 3 },
-      { time: '周三', created: 18, deleted: 1 },
-      { time: '周四', created: 22, deleted: 4 },
-      { time: '周五', created: 25, deleted: 2 },
-      { time: '周六', created: 8, deleted: 1 },
-      { time: '周日', created: 6, deleted: 0 },
-    ],
-    storageUsage: [
-      { database: 'financial_data', size: 2.3, growth: 12.5 },
-      { database: 'analytics_warehouse', size: 1.8, growth: 8.2 },
-      { database: 'backup_archive', size: 5.1, growth: 3.1 },
-    ],
-    transactionStats: {
-      successRate: 99.8,
-      avgDuration: 45,
-      totalTransactions: 15420,
-    },
-  })
+  const [duckLakeMetrics, setDuckLakeMetrics] = useState<DuckLakeMetrics | null>(null)
+  const [duckLakeLoading, setDuckLakeLoading] = useState(false)
+  const [duckLakeError, setDuckLakeError] = useState<string | null>(null)
+
+  // 获取DuckLake指标数据
+  const fetchDuckLakeMetrics = async () => {
+    setDuckLakeLoading(true)
+    setDuckLakeError(null)
+    try {
+      const response = await duckLakeAPI.getMetrics('24h')
+      if (response.data.success) {
+        // 转换后端数据格式为前端期望格式
+        const backendData = response.data.data
+        const frontendData: DuckLakeMetrics = {
+          activeDatabases: backendData.active_databases,
+          totalSnapshots: backendData.total_snapshots,
+          timeTravelQueries: backendData.time_travel_queries,
+          schemaEvolutions: backendData.schema_evolutions,
+          queryPerformance: backendData.query_performance.map((item: any) => ({
+            time: item.time,
+            version: item.version,
+            avgResponseTime: item.avg_response_time,
+            throughput: item.throughput,
+          })),
+          snapshotActivity: backendData.snapshot_activity.map((item: any) => ({
+            time: item.time,
+            created: item.created,
+            deleted: item.deleted,
+          })),
+          storageUsage: backendData.storage_usage.map((item: any) => ({
+            database: item.database,
+            size: item.size,
+            growth: item.growth,
+          })),
+          transactionStats: {
+            successRate: backendData.transaction_stats.success_rate,
+            avgDuration: backendData.transaction_stats.avg_duration,
+            totalTransactions: backendData.transaction_stats.total_transactions,
+          },
+        }
+        setDuckLakeMetrics(frontendData)
+      } else {
+        throw new Error(response.data.message || '获取DuckLake指标失败')
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '获取DuckLake指标失败'
+      setDuckLakeError(errorMessage)
+      toast.error(errorMessage)
+      console.error('获取DuckLake指标失败:', error)
+    } finally {
+      setDuckLakeLoading(false)
+    }
+  }
 
   useEffect(() => {
     // 初始加载数据
@@ -116,10 +138,14 @@ export default function Dashboard() {
     dispatch(fetchPerformanceData('24h'))
     dispatch(fetchSystemHealth())
 
+    // 获取DuckLake指标
+    fetchDuckLakeMetrics()
+
     // 设置定时刷新
     const interval = setInterval(() => {
       dispatch(fetchDashboardMetrics())
       dispatch(fetchSystemHealth())
+      fetchDuckLakeMetrics() // 同时刷新DuckLake指标
     }, 30000) // 30秒刷新一次
 
     return () => clearInterval(interval)
@@ -543,20 +569,43 @@ export default function Dashboard() {
 
         {/* DuckLake专项监控标签页 */}
         <TabsContent value="ducklake" className="space-y-8">
-          {/* DuckLake核心指标卡片 */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <Card className="card-hover">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">活跃数据库</CardTitle>
-                <Database className="h-4 w-4 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-600">{duckLakeMetrics.activeDatabases}</div>
-                <p className="text-xs text-muted-foreground">
-                  DuckLake数据库连接
-                </p>
-              </CardContent>
-            </Card>
+          {duckLakeLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-muted-foreground">加载DuckLake指标中...</p>
+              </div>
+            </div>
+          ) : duckLakeError ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
+                <p className="text-red-500 mb-2">加载失败</p>
+                <p className="text-muted-foreground text-sm">{duckLakeError}</p>
+                <button
+                  onClick={fetchDuckLakeMetrics}
+                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  重试
+                </button>
+              </div>
+            </div>
+          ) : duckLakeMetrics ? (
+            <>
+              {/* DuckLake核心指标卡片 */}
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                <Card className="card-hover">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">活跃数据库</CardTitle>
+                    <Database className="h-4 w-4 text-blue-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-blue-600">{duckLakeMetrics.activeDatabases}</div>
+                    <p className="text-xs text-muted-foreground">
+                      DuckLake数据库连接
+                    </p>
+                  </CardContent>
+                </Card>
 
             <Card className="card-hover">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -734,6 +783,15 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <Database className="h-8 w-8 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">暂无DuckLake指标数据</p>
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

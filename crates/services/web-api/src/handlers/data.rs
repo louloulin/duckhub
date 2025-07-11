@@ -9,16 +9,37 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use crate::{AppState, success_response, error_response};
 
-/// 表信息结构
+/// 格式化字节大小为人类可读格式
+fn format_size(bytes: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
+    let mut size = bytes as f64;
+    let mut unit_index = 0;
+
+    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_index += 1;
+    }
+
+    if unit_index == 0 {
+        format!("{} {}", bytes, UNITS[unit_index])
+    } else {
+        format!("{:.1} {}", size, UNITS[unit_index])
+    }
+}
+
+/// 表信息结构 (扩展版本，匹配前端期望格式)
 #[derive(Debug, Serialize, Clone)]
 pub struct TableInfo {
     pub name: String,
-    pub row_count: u64,
+    pub rows: u64,           // 前端期望字段名
+    pub size: String,        // 前端期望格式化的大小字符串
+    pub schema_version: u32, // 前端期望字段名
+    pub last_modified: String, // 前端期望字段名
+    pub description: Option<String>,
+    // 保留原有字段用于内部计算
     pub size_bytes: u64,
     pub column_count: u32,
-    pub created_at: String,
     pub table_type: String,
-    pub description: Option<String>,
 }
 
 /// 列信息结构
@@ -59,6 +80,37 @@ pub struct IndexInfo {
     pub columns: Vec<String>,
     pub unique: bool,
     pub index_type: String,
+}
+
+/// Schema变更信息
+#[derive(Debug, Serialize, Clone)]
+pub struct SchemaChange {
+    pub change_type: String, // "add_column", "drop_column", "modify_column", "add_index", "drop_index"
+    pub table: String,
+    pub column: Option<String>,
+    pub old_definition: Option<String>,
+    pub new_definition: Option<String>,
+    pub description: String,
+    pub impact: String, // "low", "medium", "high"
+}
+
+/// Schema版本信息
+#[derive(Debug, Serialize)]
+pub struct SchemaVersion {
+    pub version: u32,
+    pub timestamp: String,
+    pub author: String,
+    pub description: String,
+    pub changes: Vec<SchemaChange>,
+    pub compatibility: String, // "backward", "forward", "breaking", "full"
+}
+
+/// Schema演进查询参数
+#[derive(Debug, Deserialize)]
+pub struct SchemaEvolutionQuery {
+    pub table: Option<String>,
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
 }
 
 /// 表统计信息
@@ -113,39 +165,47 @@ pub async fn get_tables(app_state: web::Data<AppState>) -> ActixResult<HttpRespo
     let tables = vec![
         TableInfo {
             name: "transactions".to_string(),
-            row_count: 1_250_000,
-            size_bytes: 125_000_000,
+            rows: 1_250_000,
+            size: format_size(2_400_000_000), // 2.4 GB
+            schema_version: 5,
+            last_modified: "2024-01-11 14:30:25".to_string(),
+            description: Some("交易记录表".to_string()),
+            size_bytes: 2_400_000_000,
             column_count: 8,
-            created_at: "2024-01-01T00:00:00Z".to_string(),
             table_type: "TABLE".to_string(),
-            description: Some("金融交易记录表".to_string()),
         },
         TableInfo {
             name: "users".to_string(),
-            row_count: 50_000,
-            size_bytes: 5_000_000,
-            column_count: 12,
-            created_at: "2024-01-01T00:00:00Z".to_string(),
-            table_type: "TABLE".to_string(),
+            rows: 45_000,
+            size: format_size(125_000_000), // 125 MB
+            schema_version: 3,
+            last_modified: "2024-01-10 09:15:10".to_string(),
             description: Some("用户信息表".to_string()),
+            size_bytes: 125_000_000,
+            column_count: 12,
+            table_type: "TABLE".to_string(),
         },
         TableInfo {
-            name: "accounts".to_string(),
-            row_count: 75_000,
-            size_bytes: 7_500_000,
+            name: "products".to_string(),
+            rows: 8_500,
+            size: format_size(47_000_000), // 47 MB
+            schema_version: 2,
+            last_modified: "2024-01-09 16:20:30".to_string(),
+            description: Some("产品信息表".to_string()),
+            size_bytes: 47_000_000,
             column_count: 10,
-            created_at: "2024-01-01T00:00:00Z".to_string(),
             table_type: "TABLE".to_string(),
-            description: Some("账户信息表".to_string()),
         },
         TableInfo {
-            name: "market_data".to_string(),
-            row_count: 5_000_000,
-            size_bytes: 500_000_000,
+            name: "orders".to_string(),
+            rows: 890_000,
+            size: format_size(1_900_000_000), // 1.9 GB
+            schema_version: 4,
+            last_modified: "2024-01-11 12:45:15".to_string(),
+            description: Some("订单记录表".to_string()),
+            size_bytes: 1_900_000_000,
             column_count: 15,
-            created_at: "2024-01-01T00:00:00Z".to_string(),
             table_type: "TABLE".to_string(),
-            description: Some("市场数据表".to_string()),
         },
     ];
     
@@ -547,4 +607,128 @@ pub async fn preview_table(
     };
 
     get_table_data(app_state, web::Path::from(table_name), web::Query(query)).await
+}
+
+/// 获取Schema演进历史
+#[instrument(skip(_app_state))]
+pub async fn get_schema_evolution(
+    _app_state: web::Data<AppState>,
+    query: web::Query<SchemaEvolutionQuery>
+) -> ActixResult<HttpResponse> {
+    info!("获取Schema演进历史，表: {:?}", query.table);
+
+    // 模拟Schema演进历史数据
+    let schema_versions = vec![
+        SchemaVersion {
+            version: 5,
+            timestamp: "2024-01-11 14:30:25".to_string(),
+            author: "admin".to_string(),
+            description: "添加交易状态字段".to_string(),
+            compatibility: "backward".to_string(),
+            changes: vec![
+                SchemaChange {
+                    change_type: "add_column".to_string(),
+                    table: "transactions".to_string(),
+                    column: Some("status".to_string()),
+                    old_definition: None,
+                    new_definition: Some("VARCHAR(50) NOT NULL DEFAULT 'pending'".to_string()),
+                    description: "添加交易状态字段，支持pending/completed/failed状态".to_string(),
+                    impact: "low".to_string(),
+                }
+            ],
+        },
+        SchemaVersion {
+            version: 4,
+            timestamp: "2024-01-10 16:20:15".to_string(),
+            author: "developer".to_string(),
+            description: "修改金额字段精度".to_string(),
+            compatibility: "breaking".to_string(),
+            changes: vec![
+                SchemaChange {
+                    change_type: "modify_column".to_string(),
+                    table: "transactions".to_string(),
+                    column: Some("amount".to_string()),
+                    old_definition: Some("DECIMAL(8,2)".to_string()),
+                    new_definition: Some("DECIMAL(10,2)".to_string()),
+                    description: "增加金额字段精度以支持更大金额".to_string(),
+                    impact: "medium".to_string(),
+                }
+            ],
+        },
+        SchemaVersion {
+            version: 3,
+            timestamp: "2024-01-09 10:15:30".to_string(),
+            author: "dba".to_string(),
+            description: "添加索引优化查询性能".to_string(),
+            compatibility: "full".to_string(),
+            changes: vec![
+                SchemaChange {
+                    change_type: "add_index".to_string(),
+                    table: "transactions".to_string(),
+                    column: Some("user_id".to_string()),
+                    old_definition: None,
+                    new_definition: Some("INDEX idx_user_id (user_id)".to_string()),
+                    description: "为user_id字段添加索引".to_string(),
+                    impact: "low".to_string(),
+                }
+            ],
+        },
+        SchemaVersion {
+            version: 2,
+            timestamp: "2024-01-08 14:45:20".to_string(),
+            author: "admin".to_string(),
+            description: "初始Schema设计".to_string(),
+            compatibility: "full".to_string(),
+            changes: vec![
+                SchemaChange {
+                    change_type: "add_column".to_string(),
+                    table: "transactions".to_string(),
+                    column: Some("created_at".to_string()),
+                    old_definition: None,
+                    new_definition: Some("TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP".to_string()),
+                    description: "添加创建时间字段".to_string(),
+                    impact: "low".to_string(),
+                }
+            ],
+        },
+    ];
+
+    // 根据查询参数过滤
+    let filtered_versions: Vec<SchemaVersion> = if let Some(table_name) = &query.table {
+        schema_versions.into_iter()
+            .filter(|v| v.changes.iter().any(|c| c.table == *table_name))
+            .collect()
+    } else {
+        schema_versions
+    };
+
+    // 应用分页
+    let limit = query.limit.unwrap_or(50) as usize;
+    let offset = query.offset.unwrap_or(0) as usize;
+    let paginated_versions: Vec<SchemaVersion> = filtered_versions
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .collect();
+
+    info!("成功获取Schema演进历史，包含 {} 个版本", paginated_versions.len());
+    Ok(success_response(paginated_versions))
+}
+
+/// 获取特定表的Schema演进历史
+#[instrument(skip(_app_state))]
+pub async fn get_table_schema_evolution(
+    _app_state: web::Data<AppState>,
+    path: web::Path<String>
+) -> ActixResult<HttpResponse> {
+    let table_name = path.into_inner();
+    info!("获取表 {} 的Schema演进历史", table_name);
+
+    let query = SchemaEvolutionQuery {
+        table: Some(table_name.clone()),
+        limit: Some(20),
+        offset: Some(0),
+    };
+
+    get_schema_evolution(_app_state, web::Query(query)).await
 }

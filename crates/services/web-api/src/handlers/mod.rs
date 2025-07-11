@@ -13,6 +13,7 @@ pub mod analytics;
 pub mod system;
 pub mod files;
 pub mod realtime;
+pub mod ducklake_metrics;
 
 pub use auth::*;
 pub use query::*;
@@ -27,6 +28,7 @@ pub use analytics::*;
 pub use system::*;
 pub use files::*;
 pub use realtime::*;
+pub use ducklake_metrics::*;
 
 use actix_web::{web, HttpResponse, Result as ActixResult};
 use serde_json::json;

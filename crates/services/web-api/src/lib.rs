@@ -213,6 +213,8 @@ fn configure_routes(cfg: &mut web::ServiceConfig) {
                 .route("/tables/{name}/data", web::get().to(get_table_data))
                 .route("/tables/{name}/stats", web::get().to(get_table_stats))
                 .route("/tables/{name}/preview", web::get().to(preview_table))
+                .route("/schema/evolution", web::get().to(get_schema_evolution))
+                .route("/tables/{name}/schema/evolution", web::get().to(get_table_schema_evolution))
         )
 
         // 仪表板相关
@@ -269,6 +271,8 @@ fn configure_routes(cfg: &mut web::ServiceConfig) {
                 .route("/databases/{name}/snapshots", web::get().to(list_snapshots))
                 .route("/databases/{name}/time-travel", web::post().to(time_travel_query))
                 .route("/databases/{name}/schema", web::get().to(get_schema))
+                .route("/metrics", web::get().to(get_ducklake_metrics))
+                .route("/metrics/performance", web::get().to(get_ducklake_performance_history))
         );
 }
 
