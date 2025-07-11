@@ -110,14 +110,7 @@ where
         // 认证失败，返回401
         warn!("认证失败，路径: {}", path);
         Box::pin(async move {
-            let response = HttpResponse::Unauthorized()
-                .json(serde_json::json!({
-                    "success": false,
-                    "error": "认证失败，请提供有效的访问令牌",
-                    "code": 401
-                }));
-
-            Ok(req.into_response(response).map_into_boxed_body().map_into_right_body())
+            Err(actix_web::error::ErrorUnauthorized("认证失败，请提供有效的访问令牌"))
         })
     }
 }

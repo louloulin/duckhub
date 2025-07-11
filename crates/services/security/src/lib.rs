@@ -25,6 +25,8 @@ pub use auth::*;
 pub use permissions::*;
 pub use audit::*;
 
+// 主要服务将在下面定义并自动导出
+
 /// 认证服务
 pub struct AuthService {
     engine: Arc<DuckDBEngine>,
@@ -69,7 +71,7 @@ impl AuthService {
                 expires_at: Utc::now() + self.token_expiry,
             })
         } else {
-            Err(DuckHubError::authentication("用户名或密码错误".to_string()))
+            Err(DuckHubError::auth("用户名或密码错误".to_string()))
         }
     }
 
@@ -83,7 +85,7 @@ impl AuthService {
             Ok(token_data) => Ok(token_data.claims),
             Err(e) => {
                 warn!("令牌验证失败: {}", e);
-                Err(DuckHubError::authentication("无效的令牌".to_string()))
+                Err(DuckHubError::auth("无效的令牌".to_string()))
             }
         }
     }
@@ -101,7 +103,7 @@ impl AuthService {
         let encoding_key = EncodingKey::from_secret(self.jwt_secret.as_ref());
         
         encode(&Header::default(), &claims, &encoding_key)
-            .map_err(|e| DuckHubError::authentication(format!("生成令牌失败: {}", e)))
+            .map_err(|e| DuckHubError::auth(format!("生成令牌失败: {}", e)))
     }
 
     /// 刷新令牌
@@ -112,7 +114,7 @@ impl AuthService {
         // Mock user lookup
         let user = User {
             id: Uuid::parse_str(&claims.sub)
-                .map_err(|e| DuckHubError::authentication(format!("无效的用户ID: {}", e)))?,
+                .map_err(|e| DuckHubError::auth(format!("无效的用户ID: {}", e)))?,
             username: claims.username,
             email: "admin@duckhub.com".to_string(),
             roles: claims.roles,
@@ -136,6 +138,97 @@ impl AuthService {
         // In real implementation, add token to blacklist
         info!("用户注销");
         Ok(())
+    }
+
+    /// 用户认证
+    #[instrument(skip(self, password))]
+    pub async fn authenticate(&self, username: &str, password: &str) -> Result<User> {
+        info!("用户认证: {}", username);
+
+        // Mock authentication - in real implementation, check against database
+        if username == "admin" && password == "admin123" {
+            Ok(User {
+                id: uuid::Uuid::new_v4(),
+                username: username.to_string(),
+                email: "admin@duckhub.com".to_string(),
+                roles: vec!["admin".to_string()],
+                created_at: chrono::Utc::now() - chrono::Duration::days(30),
+                last_login: Some(chrono::Utc::now()),
+                is_active: true,
+            })
+        } else {
+            Err(DuckHubError::auth("用户名或密码错误"))
+        }
+    }
+
+    /// 生成访问令牌
+    #[instrument(skip(self))]
+    pub async fn generate_access_token(&self, user: &User) -> Result<String> {
+        self.generate_token(user)
+    }
+
+    /// 生成刷新令牌
+    #[instrument(skip(self))]
+    pub async fn generate_refresh_token(&self, user: &User) -> Result<String> {
+        // For simplicity, use the same token generation logic
+        // In real implementation, refresh tokens would have different expiry and storage
+        self.generate_token(user)
+    }
+
+    /// 更新最后登录时间
+    #[instrument(skip(self))]
+    pub async fn update_last_login(&self, user_id: &uuid::Uuid) -> Result<()> {
+        info!("更新用户最后登录时间: {}", user_id);
+        // Mock implementation - in real implementation, update database
+        Ok(())
+    }
+
+    /// 撤销令牌
+    #[instrument(skip(self))]
+    pub async fn revoke_token(&self, token: &str) -> Result<()> {
+        info!("撤销令牌");
+        // Mock implementation - in real implementation, add to blacklist
+        Ok(())
+    }
+
+    /// 刷新访问令牌
+    #[instrument(skip(self))]
+    pub async fn refresh_access_token(&self, refresh_token: &str) -> Result<AuthResponse> {
+        self.refresh_token(refresh_token).await
+    }
+
+    /// 根据ID获取用户
+    #[instrument(skip(self))]
+    pub async fn get_user_by_id(&self, user_id: &uuid::Uuid) -> Result<User> {
+        info!("获取用户信息: {}", user_id);
+
+        // Mock implementation
+        Ok(User {
+            id: *user_id,
+            username: "admin".to_string(),
+            email: "admin@duckhub.com".to_string(),
+            roles: vec!["admin".to_string()],
+            created_at: chrono::Utc::now() - chrono::Duration::days(30),
+            last_login: Some(chrono::Utc::now()),
+            is_active: true,
+        })
+    }
+
+    /// 更新用户资料
+    #[instrument(skip(self))]
+    pub async fn update_user_profile(&self, user_id: &uuid::Uuid, profile: serde_json::Value) -> Result<User> {
+        info!("更新用户资料: {}", user_id);
+
+        // Mock implementation
+        Ok(User {
+            id: *user_id,
+            username: profile.get("username").and_then(|v| v.as_str()).unwrap_or("admin").to_string(),
+            email: profile.get("email").and_then(|v| v.as_str()).unwrap_or("admin@duckhub.com").to_string(),
+            roles: vec!["admin".to_string()],
+            created_at: chrono::Utc::now() - chrono::Duration::days(30),
+            last_login: Some(chrono::Utc::now()),
+            is_active: true,
+        })
     }
 }
 

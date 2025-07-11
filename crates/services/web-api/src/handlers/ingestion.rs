@@ -3,6 +3,7 @@
 use actix_web::{web, HttpResponse, Result as ActixResult};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use chrono::{DateTime, Utc};
 use tracing::{info, error, instrument};
 use validator::Validate;
 use crate::{AppState, success_response, error_response};
@@ -41,13 +42,8 @@ pub struct DataSourceResponse {
 pub async fn get_ingestion_status(app_state: web::Data<AppState>) -> ActixResult<HttpResponse> {
     info!("获取数据采集状态");
 
-    match app_state.ingestion_service.get_status().await {
-        Ok(status) => Ok(success_response(status)),
-        Err(e) => {
-            error!("获取数据采集状态失败: {}", e);
-            Ok(error_response("获取数据采集状态失败", 500))
-        }
-    }
+    let status = app_state.ingestion_service.get_status().await;
+    Ok(success_response(status))
 }
 
 /// 列出数据源
@@ -59,14 +55,14 @@ pub async fn list_data_sources(app_state: web::Data<AppState>) -> ActixResult<Ht
         Ok(sources) => {
             let response: Vec<DataSourceResponse> = sources.into_iter().map(|source| {
                 DataSourceResponse {
-                    id: source.id,
-                    name: source.name,
-                    source_type: source.source_type,
-                    status: source.status,
-                    description: source.description,
-                    enabled: source.enabled,
-                    created_at: source.created_at,
-                    updated_at: source.updated_at,
+                    id: source.get("id").and_then(|v| v.as_str()).and_then(|s| Uuid::parse_str(s).ok()).unwrap_or_else(Uuid::new_v4),
+                    name: source.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    source_type: source.get("source_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    status: source.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    description: source.get("description").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    enabled: source.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false),
+                    created_at: source.get("created_at").and_then(|v| v.as_str()).and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map(|dt| dt.with_timezone(&Utc)).unwrap_or_else(Utc::now),
+                    updated_at: source.get("updated_at").and_then(|v| v.as_str()).and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map(|dt| dt.with_timezone(&Utc)).unwrap_or_else(Utc::now),
                 }
             }).collect();
 
@@ -96,20 +92,20 @@ pub async fn create_data_source(
         source_type: request.source_type.clone(),
         config: request.config.clone(),
         description: request.description.clone(),
-        enabled: request.enabled.unwrap_or(true),
+        enabled: Some(request.enabled.unwrap_or(true)),
     };
 
     match app_state.ingestion_service.create_source(create_request).await {
         Ok(source) => {
             let response = DataSourceResponse {
-                id: source.id,
-                name: source.name,
-                source_type: source.source_type,
-                status: source.status,
-                description: source.description,
-                enabled: source.enabled,
-                created_at: source.created_at,
-                updated_at: source.updated_at,
+                id: source.get("id").and_then(|v| v.as_str()).and_then(|s| Uuid::parse_str(s).ok()).unwrap_or_else(Uuid::new_v4),
+                name: source.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                source_type: source.get("source_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                status: source.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                description: source.get("description").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                enabled: source.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false),
+                created_at: source.get("created_at").and_then(|v| v.as_str()).and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map(|dt| dt.with_timezone(&Utc)).unwrap_or_else(Utc::now),
+                updated_at: source.get("updated_at").and_then(|v| v.as_str()).and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map(|dt| dt.with_timezone(&Utc)).unwrap_or_else(Utc::now),
             };
 
             Ok(success_response(response))
@@ -142,17 +138,17 @@ pub async fn update_data_source(
         enabled: request.enabled,
     };
 
-    match app_state.ingestion_service.update_source(&source_id, update_request).await {
+    match app_state.ingestion_service.update_source(&source_id.to_string(), update_request).await {
         Ok(source) => {
             let response = DataSourceResponse {
-                id: source.id,
-                name: source.name,
-                source_type: source.source_type,
-                status: source.status,
-                description: source.description,
-                enabled: source.enabled,
-                created_at: source.created_at,
-                updated_at: source.updated_at,
+                id: source.get("id").and_then(|v| v.as_str()).and_then(|s| Uuid::parse_str(s).ok()).unwrap_or_else(Uuid::new_v4),
+                name: source.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                source_type: source.get("source_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                status: source.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                description: source.get("description").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                enabled: source.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false),
+                created_at: source.get("created_at").and_then(|v| v.as_str()).and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map(|dt| dt.with_timezone(&Utc)).unwrap_or_else(Utc::now),
+                updated_at: source.get("updated_at").and_then(|v| v.as_str()).and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map(|dt| dt.with_timezone(&Utc)).unwrap_or_else(Utc::now),
             };
 
             Ok(success_response(response))
@@ -173,7 +169,7 @@ pub async fn delete_data_source(
     let source_id = path.into_inner();
     info!("删除数据源: {}", source_id);
 
-    match app_state.ingestion_service.delete_source(&source_id).await {
+    match app_state.ingestion_service.delete_source(&source_id.to_string()).await {
         Ok(_) => Ok(success_response(serde_json::json!({
             "message": "数据源删除成功"
         }))),

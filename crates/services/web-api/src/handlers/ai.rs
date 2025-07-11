@@ -138,7 +138,7 @@ pub async fn ai_chat(
     let chat_request = duckhub_ai_agent::ChatRequest {
         message: request.message.clone(),
         session_id: request.session_id.clone(),
-        context: request.context.clone(),
+        context: request.context.as_ref().map(|v| v.to_string()),
     };
 
     match app_state.ai_service.chat(chat_request).await {
@@ -147,7 +147,7 @@ pub async fn ai_chat(
             
             let ai_response = AIChatResponse {
                 response: response.get("response").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                session_id: response.get("session_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                session_id: response.get("session_id").and_then(|v| v.as_str()).map(|s| s.to_string()).unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
                 suggested_sql: response.get("metadata").and_then(|m| m.get("sql_query")).and_then(|v| v.as_str()).map(|s| s.to_string()),
                 confidence: response.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.85),
                 response_time_ms: response_time.as_millis() as u64,
@@ -176,14 +176,14 @@ pub async fn ai_analyze(
     let start_time = std::time::Instant::now();
 
     let analysis_request = duckhub_ai_agent::AnalysisRequest {
-        content: request.content.clone(),
+        query: request.content.clone(),
+        context: None,
         analysis_type: match request.analysis_type {
-            AnalysisType::SqlAnalysis => duckhub_ai_agent::AnalysisType::SqlAnalysis,
-            AnalysisType::SchemaAnalysis => duckhub_ai_agent::AnalysisType::SchemaAnalysis,
-            AnalysisType::PerformanceAnalysis => duckhub_ai_agent::AnalysisType::PerformanceAnalysis,
-            AnalysisType::AnomalyDetection => duckhub_ai_agent::AnalysisType::AnomalyDetection,
+            AnalysisType::SqlAnalysis => duckhub_ai_agent::AnalysisType::Query,
+            AnalysisType::SchemaAnalysis => duckhub_ai_agent::AnalysisType::Schema,
+            AnalysisType::PerformanceAnalysis => duckhub_ai_agent::AnalysisType::Performance,
+            AnalysisType::AnomalyDetection => duckhub_ai_agent::AnalysisType::Data,
         },
-        parameters: request.parameters.clone(),
     };
 
     match app_state.ai_service.analyze(analysis_request).await {
@@ -191,7 +191,7 @@ pub async fn ai_analyze(
             let analysis_time = start_time.elapsed();
             
             let ai_response = AIAnalyzeResponse {
-                analysis: analysis.get("result").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                analysis: analysis.get("result").cloned().unwrap_or(serde_json::Value::String("".to_string())),
                 recommendations: analysis.get("recommendations").and_then(|v| v.as_array())
                     .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
                     .unwrap_or_default(),
@@ -238,8 +238,8 @@ pub async fn ai_suggest(
                 SuggestedQuery {
                     sql: suggestions.get("optimized_query").and_then(|v| v.as_str()).unwrap_or("SELECT * FROM table").to_string(),
                     description: suggestions.get("suggestion").and_then(|v| v.as_str()).unwrap_or("查询建议").to_string(),
-                    complexity: "medium".to_string(),
-                    estimated_time: 100,
+                    complexity: 2, // medium complexity
+                    estimated_time: "100ms".to_string(),
                 }
             ];
 

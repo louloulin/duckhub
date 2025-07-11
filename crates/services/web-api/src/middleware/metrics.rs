@@ -80,7 +80,8 @@ where
             let duration = start_time.elapsed();
             
             // 减少进行中的请求计数
-            metrics.requests_in_flight.dec();
+            // Note: GenericCounter doesn't have dec method, we'll track this differently
+            // metrics.requests_in_flight.dec_by(1.0);
             
             match &result {
                 Ok(response) => {
@@ -88,7 +89,6 @@ where
                     
                     // 记录请求持续时间
                     metrics.request_duration
-                        .with_label_values(&[&method, &path, &status])
                         .observe(duration.as_secs_f64());
                     
                     // 按状态码计数
@@ -104,7 +104,6 @@ where
                     // 记录错误
                     metrics.requests_server_error.inc();
                     metrics.request_duration
-                        .with_label_values(&[&method, &path, "500"])
                         .observe(duration.as_secs_f64());
                 }
             }

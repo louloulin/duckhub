@@ -105,7 +105,7 @@ pub async fn login(
             }
 
             // 获取用户权限
-            let permissions = match app_state.permission_service.get_user_permissions(&user.id).await {
+            let permissions = match app_state.permission_service.get_user_permissions(&user.roles).await {
                 Ok(perms) => perms,
                 Err(e) => {
                     warn!("获取用户权限失败: {}", e);
@@ -120,13 +120,13 @@ pub async fn login(
                 expires_in: app_state.config.jwt.access_token_expiry,
                 user: UserInfo {
                     id: user.id,
-                    username: user.username,
-                    email: user.email,
-                    display_name: user.display_name,
-                    roles: user.roles,
+                    username: user.username.clone(),
+                    email: user.email.clone(),
+                    display_name: user.username.clone(),
+                    roles: user.roles.clone(),
                     permissions,
                     created_at: user.created_at,
-                    last_login_at: user.last_login_at,
+                    last_login_at: user.last_login,
                 },
             };
 
@@ -177,10 +177,10 @@ pub async fn refresh_token(
     info!("刷新访问令牌");
 
     match app_state.auth_service.refresh_access_token(&request.refresh_token).await {
-        Ok((access_token, new_refresh_token)) => {
+        Ok(auth_response) => {
             let response = serde_json::json!({
-                "access_token": access_token,
-                "refresh_token": new_refresh_token,
+                "access_token": auth_response.token,
+                "refresh_token": auth_response.token, // For simplicity, use same token
                 "token_type": "Bearer",
                 "expires_in": app_state.config.jwt.access_token_expiry
             });
@@ -213,7 +213,7 @@ pub async fn get_profile(
     match app_state.auth_service.get_user_by_id(&user_id).await {
         Ok(user) => {
             // 获取用户权限
-            let permissions = match app_state.permission_service.get_user_permissions(&user.id).await {
+            let permissions = match app_state.permission_service.get_user_permissions(&user.roles).await {
                 Ok(perms) => perms,
                 Err(e) => {
                     warn!("获取用户权限失败: {}", e);
@@ -223,13 +223,13 @@ pub async fn get_profile(
 
             let user_info = UserInfo {
                 id: user.id,
-                username: user.username,
-                email: user.email,
-                display_name: user.display_name,
-                roles: user.roles,
+                username: user.username.clone(),
+                email: user.email.clone(),
+                display_name: user.username.clone(),
+                roles: user.roles.clone(),
                 permissions,
                 created_at: user.created_at,
-                last_login_at: user.last_login_at,
+                last_login_at: user.last_login,
             };
 
             Ok(success_response(user_info))
@@ -242,7 +242,7 @@ pub async fn get_profile(
 }
 
 /// 更新用户资料请求
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct UpdateProfileRequest {
     /// 显示名称
     #[validate(length(min = 1, max = 100, message = "显示名称长度必须在1-100字符之间"))]
@@ -272,17 +272,17 @@ pub async fn update_profile(
 
     info!("更新用户资料: {}", user_id);
 
-    match app_state.auth_service.update_user_profile(&user_id, request.into_inner()).await {
+    match app_state.auth_service.update_user_profile(&user_id, serde_json::to_value(request.into_inner()).unwrap()).await {
         Ok(updated_user) => {
             let user_info = UserInfo {
                 id: updated_user.id,
-                username: updated_user.username,
-                email: updated_user.email,
-                display_name: updated_user.display_name,
-                roles: updated_user.roles,
+                username: updated_user.username.clone(),
+                email: updated_user.email.clone(),
+                display_name: updated_user.username.clone(),
+                roles: updated_user.roles.clone(),
                 permissions: Vec::new(), // 权限不在此处更新
                 created_at: updated_user.created_at,
-                last_login_at: updated_user.last_login_at,
+                last_login_at: updated_user.last_login,
             };
 
             Ok(success_response(user_info))

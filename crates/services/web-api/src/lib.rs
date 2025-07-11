@@ -10,7 +10,7 @@
 use duckhub_common::prelude::*;
 use duckhub_database::DuckDBEngine;
 use duckhub_cache::CacheManager;
-use duckhub_security::{AuthService, PermissionService};
+use duckhub_security_service::{AuthService, PermissionService};
 use duckhub_data_ingestion::DataIngestionService;
 use duckhub_query_analytics::QueryAnalyticsService;
 use duckhub_ai_agent::AIAgentService;

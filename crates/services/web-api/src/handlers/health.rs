@@ -4,6 +4,7 @@ use actix_web::{web, HttpResponse, Result as ActixResult};
 use serde_json::json;
 use tracing::{info, error, instrument};
 use prometheus::{Encoder, TextEncoder};
+use duckhub_ai_agent::HealthStatus;
 use duckhub_cache::Cache;
 use crate::{AppState, success_response, error_response};
 
@@ -192,7 +193,10 @@ pub async fn detailed_health(app_state: web::Data<AppState>) -> ActixResult<Http
     match app_state.ai_service.health_check().await {
         Ok(healthy) => {
             components.insert("ai_service".to_string(), json!({
-                "status": if healthy { "healthy" } else { "unhealthy" },
+                "status": match healthy {
+                    HealthStatus::Healthy => "healthy",
+                    HealthStatus::Unhealthy => "unhealthy",
+                },
                 "last_check": chrono::Utc::now()
             }));
         }

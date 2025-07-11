@@ -275,9 +275,9 @@ pub async fn optimize_query(
 }
 
 /// 获取查询历史
-#[instrument(skip(app_state))]
+#[instrument(skip(_app_state))]
 pub async fn get_query_history(
-    app_state: web::Data<AppState>,
+    _app_state: web::Data<AppState>,
     query: web::Query<PaginationQuery>,
 ) -> ActixResult<HttpResponse> {
     let (page, page_size) = validate_pagination(query.page, query.page_size);

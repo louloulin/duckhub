@@ -9,7 +9,7 @@ description = "DuckHub Web API服务 - 金融数据平台REST API接口"
 duckhub-common = { path = "../../core/common" }
 duckhub-database = { path = "../../core/database" }
 duckhub-cache = { path = "../../core/cache" }
-duckhub-security = { path = "../../core/security" }
+duckhub-security-service = { path = "../security" }
 duckhub-data-ingestion = { path = "../data-ingestion" }
 duckhub-query-analytics = { path = "../query-analytics" }
 duckhub-ai-agent = { path = "../ai-agent" }

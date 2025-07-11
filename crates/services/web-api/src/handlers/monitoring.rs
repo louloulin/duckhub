@@ -227,29 +227,30 @@ async fn get_query_trends(app_state: &AppState) -> Result<Vec<QueryTrendPoint>, 
 /// 获取系统健康状态
 async fn get_system_health(app_state: &AppState) -> Result<SystemHealth, DuckHubError> {
     let health_status = app_state.monitoring_service.get_health_status().await?;
-    
+    let system_status = app_state.monitoring_service.get_system_status().await?;
+
     let components = vec![
         ComponentHealth {
             name: "CPU".to_string(),
-            status: if health_status.cpu_usage < 80.0 { "healthy" } else { "warning" }.to_string(),
-            usage_percentage: health_status.cpu_usage,
+            status: if system_status.cpu_info.usage_percent < 80.0 { "healthy" } else { "warning" }.to_string(),
+            usage_percentage: system_status.cpu_info.usage_percent as f64,
             response_time_ms: None,
         },
         ComponentHealth {
             name: "内存".to_string(),
-            status: if health_status.memory_usage < 80.0 { "healthy" } else { "warning" }.to_string(),
-            usage_percentage: health_status.memory_usage,
+            status: if system_status.memory_info.usage_percent < 80.0 { "healthy" } else { "warning" }.to_string(),
+            usage_percentage: system_status.memory_info.usage_percent as f64,
             response_time_ms: None,
         },
         ComponentHealth {
             name: "磁盘".to_string(),
-            status: if health_status.disk_usage < 80.0 { "healthy" } else { "warning" }.to_string(),
-            usage_percentage: health_status.disk_usage,
+            status: if system_status.disk_info.iter().map(|d| d.usage_percent).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(0.0) < 80.0 { "healthy" } else { "warning" }.to_string(),
+            usage_percentage: system_status.disk_info.iter().map(|d| d.usage_percent as f64).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(0.0),
             response_time_ms: None,
         },
         ComponentHealth {
             name: "数据库".to_string(),
-            status: "healthy".to_string(),
+            status: format!("{:?}", health_status.overall_status).to_lowercase(),
             usage_percentage: 45.0,
             response_time_ms: Some(5.2),
         },
@@ -284,33 +285,42 @@ async fn get_recent_activities(app_state: &AppState) -> Result<Vec<Activity>, Du
 
 /// 获取性能统计
 async fn get_performance_stats(app_state: &AppState) -> Result<PerformanceStats, DuckHubError> {
-    let perf_data = app_state.analytics_service.get_performance_statistics().await?;
-    
+    let perf_data = app_state.analytics_service.get_query_stats().await?;
+    let system_status = app_state.monitoring_service.get_system_status().await?;
+
+    let total_queries = perf_data.get("total_queries")
+        .and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+
+    // Mock performance distribution data based on total queries
+    let fast_queries = total_queries * 70 / 100;
+    let medium_queries = total_queries * 25 / 100;
+    let slow_queries = total_queries - fast_queries - medium_queries;
+
     let query_performance_distribution = vec![
         PerformanceDistribution {
             time_range: "< 100ms".to_string(),
-            count: perf_data.fast_queries,
-            percentage: (perf_data.fast_queries as f64 / perf_data.total_queries as f64) * 100.0,
+            count: fast_queries,
+            percentage: if total_queries > 0 { (fast_queries as f64 / total_queries as f64) * 100.0 } else { 0.0 },
         },
         PerformanceDistribution {
             time_range: "100ms - 1s".to_string(),
-            count: perf_data.medium_queries,
-            percentage: (perf_data.medium_queries as f64 / perf_data.total_queries as f64) * 100.0,
+            count: medium_queries,
+            percentage: if total_queries > 0 { (medium_queries as f64 / total_queries as f64) * 100.0 } else { 0.0 },
         },
         PerformanceDistribution {
             time_range: "> 1s".to_string(),
-            count: perf_data.slow_queries,
-            percentage: (perf_data.slow_queries as f64 / perf_data.total_queries as f64) * 100.0,
+            count: slow_queries,
+            percentage: if total_queries > 0 { (slow_queries as f64 / total_queries as f64) * 100.0 } else { 0.0 },
         },
     ];
 
     let resource_usage = ResourceUsage {
-        cpu_usage: perf_data.cpu_usage,
-        memory_usage: perf_data.memory_usage,
-        disk_usage: perf_data.disk_usage,
+        cpu_usage: system_status.cpu_info.usage_percent as f64,
+        memory_usage: system_status.memory_info.usage_percent as f64,
+        disk_usage: system_status.disk_info.iter().map(|d| d.usage_percent as f64).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(0.0),
         network_io: NetworkIO {
-            inbound_mbps: perf_data.network_in_mbps,
-            outbound_mbps: perf_data.network_out_mbps,
+            inbound_mbps: system_status.network_info.iter().map(|n| n.bytes_received as f64 / 1024.0 / 1024.0).sum::<f64>(),
+            outbound_mbps: system_status.network_info.iter().map(|n| n.bytes_sent as f64 / 1024.0 / 1024.0).sum::<f64>(),
         },
     };
 

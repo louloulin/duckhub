@@ -120,9 +120,9 @@ pub async fn list_databases(app_state: web::Data<AppState>) -> ActixResult<HttpR
                 DatabaseInfo {
                     name: db.name,
                     created_at: db.created_at,
-                    table_count: db.table_count,
-                    size_bytes: db.size_bytes,
-                    last_updated: db.last_updated,
+                    table_count: 0, // Mock value - field not available in DatabaseInfo
+                    size_bytes: db.size.parse::<u64>().unwrap_or(0),
+                    last_updated: db.last_accessed.unwrap_or(db.created_at),
                 }
             }).collect();
 
@@ -179,15 +179,15 @@ pub async fn time_travel_query(
     let database_name = path.into_inner();
     info!("执行时间旅行查询，数据库: {}", database_name);
 
-    let time_travel_request = duckhub_database::TimeTravelQuery {
+    let time_travel_request = duckhub_common::types::TimeTravelQueryRequest {
         database: database_name,
-        sql: request.sql.clone(),
+        table: "".to_string(), // 从SQL中提取表名或使用默认值
         target: match &request.target {
-            TimeTravelTarget::Timestamp(ts) => duckhub_database::TimeTravelTarget::Timestamp(*ts),
-            TimeTravelTarget::Snapshot(id) => duckhub_database::TimeTravelTarget::Snapshot(id.clone()),
-            TimeTravelTarget::Version(v) => duckhub_database::TimeTravelTarget::Version(*v),
+            TimeTravelTarget::Timestamp(ts) => duckhub_common::types::TimeTravelTarget::Timestamp(*ts),
+            TimeTravelTarget::Snapshot(id) => duckhub_common::types::TimeTravelTarget::Version(id.parse().unwrap_or(0)),
+            TimeTravelTarget::Version(v) => duckhub_common::types::TimeTravelTarget::Version(*v),
         },
-        parameters: request.parameters.clone().unwrap_or_default(),
+        sql: request.sql.clone(),
     };
 
     match app_state.engine.execute_time_travel_query(time_travel_request).await {
@@ -195,17 +195,14 @@ pub async fn time_travel_query(
             let response = serde_json::json!({
                 "query_id": result.query_id,
                 "execution_time_ms": result.execution_time_ms,
-                "row_count": result.rows.len(),
-                "data": result.rows,
-                "columns": result.columns,
+                "row_count": result.row_count,
+                "data": result.results,
                 "target_info": {
                     "type": match request.target {
                         TimeTravelTarget::Timestamp(_) => "timestamp",
                         TimeTravelTarget::Snapshot(_) => "snapshot",
                         TimeTravelTarget::Version(_) => "version",
-                    },
-                    "resolved_timestamp": result.resolved_timestamp,
-                    "resolved_version": result.resolved_version
+                    }
                 }
             });
 
