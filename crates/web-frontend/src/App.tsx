@@ -6,6 +6,7 @@ import QueryAnalytics from './pages/QueryAnalytics'
 import DataExplorer from './pages/DataExplorer'
 import AIAgent from './pages/AIAgent'
 import Settings from './pages/Settings'
+import DuckLakeManager from './pages/DuckLakeManager'
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/query-analytics" element={<QueryAnalytics />} />
           <Route path="/data-explorer" element={<DataExplorer />} />
           <Route path="/ai-agent" element={<AIAgent />} />
+          <Route path="/ducklake-manager" element={<DuckLakeManager />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </Layout>

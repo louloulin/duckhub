@@ -1,6 +1,6 @@
 //! 认证处理器
 
-use actix_web::{web, HttpResponse, Result as ActixResult, HttpRequest};
+use actix_web::{web, HttpResponse, Result as ActixResult, HttpRequest, HttpMessage};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};

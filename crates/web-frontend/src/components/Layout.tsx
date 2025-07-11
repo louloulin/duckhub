@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Bell,
   User,
+  Layers,
 } from 'lucide-react'
 
 interface LayoutProps {
@@ -25,6 +26,7 @@ const navigation = [
   { name: '仪表板', href: '/', icon: Home },
   { name: '查询分析', href: '/query-analytics', icon: BarChart3 },
   { name: '数据探索', href: '/data-explorer', icon: Database },
+  { name: 'DuckLake管理', href: '/ducklake-manager', icon: Layers },
   { name: 'AI助手', href: '/ai-agent', icon: Bot },
   { name: '设置', href: '/settings', icon: Settings },
 ]

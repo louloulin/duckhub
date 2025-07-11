@@ -27,8 +27,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
-          antd: ['antd'],
-          charts: ['echarts', 'echarts-for-react'],
+          charts: ['recharts'],
+          ui: ['@radix-ui/react-tabs', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
         },
       },
     },

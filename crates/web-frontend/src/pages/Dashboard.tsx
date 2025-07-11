@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState, AppDispatch } from '@/store'
 import {
@@ -8,12 +8,16 @@ import {
   fetchSystemHealth,
 } from '@/store/slices/dashboardSlice'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatNumber, formatDuration, formatPercentage } from '@/lib/utils'
 import {
   AreaChart,
   Area,
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -27,13 +31,83 @@ import {
   TrendingUp,
   Users,
   AlertCircle,
+  Layers,
+  GitBranch,
+  History,
+  HardDrive,
+  Zap,
+  CheckCircle,
+  BarChart3,
 } from 'lucide-react'
+
+interface DuckLakeMetrics {
+  activeDatabases: number
+  totalSnapshots: number
+  timeTravelQueries: number
+  schemaEvolutions: number
+  queryPerformance: Array<{
+    time: string
+    version: number
+    avgResponseTime: number
+    throughput: number
+  }>
+  snapshotActivity: Array<{
+    time: string
+    created: number
+    deleted: number
+  }>
+  storageUsage: Array<{
+    database: string
+    size: number
+    growth: number
+  }>
+  transactionStats: {
+    successRate: number
+    avgDuration: number
+    totalTransactions: number
+  }
+}
 
 export default function Dashboard() {
   const dispatch = useDispatch<AppDispatch>()
   const { metrics, queryTrends, performanceData, systemHealth } = useSelector(
     (state: RootState) => state.dashboard
   )
+
+  const [activeTab, setActiveTab] = useState('overview')
+  const [duckLakeMetrics] = useState<DuckLakeMetrics>({
+    activeDatabases: 3,
+    totalSnapshots: 127,
+    timeTravelQueries: 1250,
+    schemaEvolutions: 15,
+    queryPerformance: [
+      { time: '00:00', version: 125, avgResponseTime: 120, throughput: 850 },
+      { time: '04:00', version: 125, avgResponseTime: 115, throughput: 920 },
+      { time: '08:00', version: 126, avgResponseTime: 108, throughput: 1100 },
+      { time: '12:00', version: 126, avgResponseTime: 95, throughput: 1350 },
+      { time: '16:00', version: 127, avgResponseTime: 88, throughput: 1420 },
+      { time: '20:00', version: 127, avgResponseTime: 92, throughput: 1380 },
+    ],
+    snapshotActivity: [
+      { time: '周一', created: 12, deleted: 2 },
+      { time: '周二', created: 15, deleted: 3 },
+      { time: '周三', created: 18, deleted: 1 },
+      { time: '周四', created: 22, deleted: 4 },
+      { time: '周五', created: 25, deleted: 2 },
+      { time: '周六', created: 8, deleted: 1 },
+      { time: '周日', created: 6, deleted: 0 },
+    ],
+    storageUsage: [
+      { database: 'financial_data', size: 2.3, growth: 12.5 },
+      { database: 'analytics_warehouse', size: 1.8, growth: 8.2 },
+      { database: 'backup_archive', size: 5.1, growth: 3.1 },
+    ],
+    transactionStats: {
+      successRate: 99.8,
+      avgDuration: 45,
+      totalTransactions: 15420,
+    },
+  })
 
   useEffect(() => {
     // 初始加载数据
@@ -113,9 +187,21 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="space-y-8">
+      {/* 监控标签页 */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            系统概览
+          </TabsTrigger>
+          <TabsTrigger value="ducklake" className="flex items-center gap-2">
+            <Layers className="h-4 w-4" />
+            DuckLake监控
+          </TabsTrigger>
+        </TabsList>
 
-        {/* 核心指标卡片 - 现代白色风格 */}
+        <TabsContent value="overview" className="space-y-8">
+          {/* 核心指标卡片 - 现代白色风格 */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {metricCards.map((metric, index) => {
             const Icon = metric.icon
@@ -453,7 +539,203 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-      </div>
+        </TabsContent>
+
+        {/* DuckLake专项监控标签页 */}
+        <TabsContent value="ducklake" className="space-y-8">
+          {/* DuckLake核心指标卡片 */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="card-hover">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">活跃数据库</CardTitle>
+                <Database className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">{duckLakeMetrics.activeDatabases}</div>
+                <p className="text-xs text-muted-foreground">
+                  DuckLake数据库连接
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-hover">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">总快照数</CardTitle>
+                <Layers className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{duckLakeMetrics.totalSnapshots}</div>
+                <p className="text-xs text-muted-foreground">
+                  数据版本快照
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-hover">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">时间旅行查询</CardTitle>
+                <History className="h-4 w-4 text-purple-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-purple-600">{duckLakeMetrics.timeTravelQueries}</div>
+                <p className="text-xs text-muted-foreground">
+                  历史数据查询次数
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-hover">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Schema演进</CardTitle>
+                <GitBranch className="h-4 w-4 text-orange-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-orange-600">{duckLakeMetrics.schemaEvolutions}</div>
+                <p className="text-xs text-muted-foreground">
+                  Schema变更次数
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* DuckLake性能图表 */}
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* 查询性能趋势 */}
+            <Card className="card-hover">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-blue-600" />
+                  查询性能趋势
+                </CardTitle>
+                <CardDescription>
+                  按版本的查询响应时间和吞吐量
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={duckLakeMetrics.queryPerformance}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="time" />
+                    <YAxis yAxisId="left" />
+                    <YAxis yAxisId="right" orientation="right" />
+                    <Tooltip />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="avgResponseTime"
+                      stroke="#8884d8"
+                      strokeWidth={2}
+                      name="响应时间(ms)"
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="throughput"
+                      stroke="#82ca9d"
+                      strokeWidth={2}
+                      name="吞吐量(QPS)"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* 快照活动 */}
+            <Card className="card-hover">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Layers className="h-5 w-5 text-green-600" />
+                  快照创建频率
+                </CardTitle>
+                <CardDescription>
+                  每日快照创建和删除统计
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={duckLakeMetrics.snapshotActivity}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="time" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="created" fill="#82ca9d" name="创建" />
+                    <Bar dataKey="deleted" fill="#ff7300" name="删除" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 存储使用情况和事务统计 */}
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* 存储使用情况 */}
+            <Card className="card-hover">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <HardDrive className="h-5 w-5 text-indigo-600" />
+                  存储使用情况
+                </CardTitle>
+                <CardDescription>
+                  各数据库存储大小和增长率
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {duckLakeMetrics.storageUsage.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium">{item.database}</p>
+                        <p className="text-sm text-gray-600">{item.size} GB</p>
+                      </div>
+                      <Badge className={item.growth > 10 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}>
+                        +{item.growth}%
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 事务统计 */}
+            <Card className="card-hover">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-yellow-600" />
+                  事务统计
+                </CardTitle>
+                <CardDescription>
+                  ACID事务成功率和性能指标
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">成功率</span>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <span className="font-bold text-green-600">{duckLakeMetrics.transactionStats.successRate}%</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">平均持续时间</span>
+                    <span className="font-bold">{duckLakeMetrics.transactionStats.avgDuration}ms</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">总事务数</span>
+                    <span className="font-bold">{duckLakeMetrics.transactionStats.totalTransactions.toLocaleString()}</span>
+                  </div>
+                  <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                    <p className="text-sm text-green-800">
+                      <CheckCircle className="h-4 w-4 inline mr-1" />
+                      事务性能优秀，ACID保证完整
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

@@ -118,7 +118,7 @@ pub async fn execute_query(
     // 检查缓存
     let use_cache = request.use_cache.unwrap_or(true);
     let cache_key = if use_cache {
-        Some(format!("query:{}", md5::compute(&request.sql)))
+        Some(format!("query:{:x}", md5::compute(&request.sql)))
     } else {
         None
     };
@@ -131,18 +131,17 @@ pub async fn execute_query(
     }
 
     // 构建查询
-    let mut query = Query {
+    let query = Query {
         id: query_id,
         sql: request.sql.clone(),
         parameters: request.parameters.clone().unwrap_or_default(),
-        timeout: request.timeout.map(std::time::Duration::from_secs),
-        limit: request.limit,
+        timeout_seconds: request.timeout,
         user_id: None, // TODO: 从认证中间件获取用户ID
         created_at: Utc::now(),
     };
 
     // 执行查询
-    match app_state.engine.execute_query(&query).await {
+    match app_state.engine.execute(&query).await {
         Ok(result) => {
             let execution_time = start_time.elapsed();
             

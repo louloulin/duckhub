@@ -1073,53 +1073,134 @@ impl RigAIService {
         Err(DuckHubError::config("测试实例创建暂未实现，请使用模拟测试"))
     }
 
-    /// SQL查询方法（用于测试和API）
+    /// SQL查询方法（用于测试和API）- 增强版错误处理
     #[instrument(skip(self))]
     pub async fn sql_query(&self, query: &str) -> Result<String> {
         self.metrics.sql_generation_total.inc();
         let timer = self.metrics.processing_duration.start_timer();
 
+        // 输入验证
+        if query.trim().is_empty() {
+            self.metrics.errors_total.inc();
+            return Err(DuckHubError::validation("查询不能为空"));
+        }
+
+        // 检测危险SQL操作
+        let dangerous_keywords = ["DROP", "DELETE", "TRUNCATE", "ALTER", "CREATE", "INSERT", "UPDATE"];
+        let upper_query = query.to_uppercase();
+        for keyword in &dangerous_keywords {
+            if upper_query.contains(keyword) {
+                self.metrics.errors_total.inc();
+                warn!("检测到危险SQL操作: {} in query: {}", keyword, query);
+                return Err(DuckHubError::validation(
+                    format!("不允许执行{}操作，仅支持查询操作", keyword)
+                ));
+            }
+        }
+
+        // 检测SQL注入模式
+        let injection_patterns = ["';", "--", "/*", "*/", "UNION", "OR 1=1", "AND 1=1"];
+        for pattern in &injection_patterns {
+            if upper_query.contains(pattern) {
+                self.metrics.errors_total.inc();
+                warn!("检测到潜在SQL注入: {} in query: {}", pattern, query);
+                return Err(DuckHubError::validation("检测到潜在的SQL注入攻击"));
+            }
+        }
+
         let result = self.sql_agent.prompt(query).await
             .map_err(|e| {
                 self.metrics.errors_total.inc();
-                DuckHubError::internal(e.to_string())
+                error!("SQL Agent调用失败: {}", e);
+                DuckHubError::internal(format!("SQL生成失败: {}", e))
             })?;
 
         timer.observe_duration();
 
+        // 验证生成的SQL
+        if result.trim().is_empty() {
+            self.metrics.errors_total.inc();
+            return Err(DuckHubError::internal("生成的SQL为空"));
+        }
+
         Ok(result)
     }
 
-    /// 数据分析方法（用于测试和API）
+    /// 数据分析方法（用于测试和API）- 增强版错误处理
     #[instrument(skip(self))]
     pub async fn analyze_data(&self, query: &str) -> Result<String> {
         self.metrics.analysis_requests_total.inc();
         let timer = self.metrics.processing_duration.start_timer();
 
+        // 输入验证
+        if query.trim().is_empty() {
+            self.metrics.errors_total.inc();
+            return Err(DuckHubError::validation("分析查询不能为空"));
+        }
+
+        if query.len() > 10000 {
+            self.metrics.errors_total.inc();
+            return Err(DuckHubError::validation("查询内容过长，请简化查询"));
+        }
+
         let result = self.analysis_agent.prompt(query).await
             .map_err(|e| {
                 self.metrics.errors_total.inc();
-                DuckHubError::internal(e.to_string())
+                error!("Analysis Agent调用失败: {}", e);
+                DuckHubError::internal(format!("数据分析失败: {}", e))
             })?;
 
         timer.observe_duration();
 
+        if result.trim().is_empty() {
+            self.metrics.errors_total.inc();
+            return Err(DuckHubError::internal("分析结果为空"));
+        }
+
         Ok(result)
     }
 
-    /// 聊天方法（用于测试和API）
+    /// 聊天方法（用于测试和API）- 增强版错误处理
     #[instrument(skip(self))]
     pub async fn chat(&self, message: &str) -> Result<String> {
         self.metrics.chat_messages_total.inc();
         let timer = self.metrics.processing_duration.start_timer();
 
+        // 输入验证
+        if message.trim().is_empty() {
+            self.metrics.errors_total.inc();
+            return Err(DuckHubError::validation("消息不能为空"));
+        }
+
+        if message.len() > 5000 {
+            self.metrics.errors_total.inc();
+            return Err(DuckHubError::validation("消息过长，请简化内容"));
+        }
+
+        // 检测不当内容（简单实现）
+        let inappropriate_keywords = ["hack", "attack", "exploit", "malware"];
+        let lower_message = message.to_lowercase();
+        for keyword in &inappropriate_keywords {
+            if lower_message.contains(keyword) {
+                self.metrics.errors_total.inc();
+                warn!("检测到不当内容: {} in message: {}", keyword, message);
+                return Err(DuckHubError::validation("消息包含不当内容"));
+            }
+        }
+
         let result = self.chat_agent.prompt(message).await
             .map_err(|e| {
                 self.metrics.errors_total.inc();
-                DuckHubError::internal(e.to_string())
+                error!("Chat Agent调用失败: {}", e);
+                DuckHubError::internal(format!("聊天处理失败: {}", e))
             })?;
 
         timer.observe_duration();
+
+        if result.trim().is_empty() {
+            self.metrics.errors_total.inc();
+            return Err(DuckHubError::internal("聊天回复为空"));
+        }
 
         Ok(result)
     }
@@ -1356,26 +1437,66 @@ impl RigAIService {
         prompt_parts.join("\n")
     }
 
-    /// 从响应中提取SQL查询
+    /// 从响应中提取SQL查询 - 增强版
     fn extract_sql_query(&self, response: &str) -> String {
-        // 简单实现：查找SQL代码块
+        // 1. 首先查找SQL代码块
         if let Some(start) = response.find("```sql") {
-            if let Some(end) = response[start..].find("```") {
-                return response[start + 6..start + end].trim().to_string();
+            if let Some(end) = response[start + 6..].find("```") {
+                let sql = response[start + 6..start + 6 + end].trim();
+                if !sql.is_empty() {
+                    return sql.to_string();
+                }
             }
         }
 
-        // 如果没有找到SQL代码块，尝试查找SELECT语句
-        if let Some(start) = response.to_uppercase().find("SELECT") {
-            if let Some(end) = response[start..].find(";") {
-                return response[start..start + end + 1].trim().to_string();
+        // 2. 查找其他代码块格式
+        if let Some(start) = response.find("```") {
+            if let Some(end) = response[start + 3..].find("```") {
+                let sql = response[start + 3..start + 3 + end].trim();
+                if sql.to_uppercase().contains("SELECT") ||
+                   sql.to_uppercase().contains("INSERT") ||
+                   sql.to_uppercase().contains("UPDATE") ||
+                   sql.to_uppercase().contains("DELETE") {
+                    return sql.to_string();
+                }
             }
-            // 如果没有分号，返回整个后续内容
-            return response[start..].trim().to_string();
         }
 
-        // 如果都没找到，返回原始响应
-        response.to_string()
+        // 3. 查找SQL关键字开始的语句
+        let sql_keywords = ["SELECT", "INSERT", "UPDATE", "DELETE", "WITH", "CREATE"];
+        let upper_response = response.to_uppercase();
+
+        for keyword in &sql_keywords {
+            if let Some(start) = upper_response.find(keyword) {
+                let remaining = &response[start..];
+
+                // 查找语句结束位置
+                if let Some(end) = remaining.find(";") {
+                    return remaining[..end + 1].trim().to_string();
+                }
+
+                // 如果没有分号，查找下一行或段落结束
+                let lines: Vec<&str> = remaining.lines().collect();
+                if !lines.is_empty() {
+                    let mut sql_lines = Vec::new();
+                    for line in lines {
+                        let trimmed = line.trim();
+                        if trimmed.is_empty() && !sql_lines.is_empty() {
+                            break;
+                        }
+                        if !trimmed.is_empty() {
+                            sql_lines.push(trimmed);
+                        }
+                    }
+                    if !sql_lines.is_empty() {
+                        return sql_lines.join(" ");
+                    }
+                }
+            }
+        }
+
+        // 4. 如果都没找到，返回清理后的响应
+        response.trim().to_string()
     }
 
     // RAG功能暂时禁用，等基础功能稳定后再启用
@@ -1431,7 +1552,7 @@ impl RigAIService {
 // ============================================================================
 
 impl RigAIConfig {
-    /// 获取SQL生成提示词
+    /// 获取SQL生成提示词 - 增强版
     fn get_sql_generation_prompt() -> String {
         r#"你是一个专业的金融数据分析师和SQL专家。你的任务是将自然语言查询转换为准确的SQL语句。
 
@@ -1449,8 +1570,25 @@ impl RigAIConfig {
 - users: 用户表 (id, name, email, created_at, status)
 - market_data: 市场数据表 (symbol, price, volume, timestamp)
 
+SQL生成规则：
+1. 查询所有/全部 → SELECT * FROM table_name
+2. 统计/计数/数量 → SELECT COUNT(*) FROM table_name
+3. 按...分组/分类 → SELECT column, COUNT(*) FROM table_name GROUP BY column
+4. 排序/排列 → SELECT * FROM table_name ORDER BY column
+5. 连接/关联 → SELECT * FROM table1 t1 JOIN table2 t2 ON t1.id = t2.ref_id
+6. 过滤/筛选/条件 → SELECT * FROM table_name WHERE condition
+7. 求和/总计 → SELECT SUM(column) FROM table_name
+8. 时间范围 → SELECT * FROM table_name WHERE date_column BETWEEN 'start' AND 'end'
+9. 模糊匹配/包含 → SELECT * FROM table_name WHERE column LIKE '%pattern%'
+10. 去重/唯一 → SELECT DISTINCT column FROM table_name
+
 响应格式：
-将SQL语句包装在```sql代码块中，并提供简要说明。"#.to_string()
+```sql
+-- 生成的SQL语句
+SELECT ...
+```
+
+重要：必须严格按照上述规则生成SQL，确保包含正确的关键字。"#.to_string()
     }
 
     /// 获取数据分析提示词

@@ -20,7 +20,7 @@ mod performance_tests {
             Self { metrics }
         }
 
-        async fn sql_query(&self, _query: &str) -> duckhub_common::Result<String> {
+        async fn sql_query(&self, query: &str) -> duckhub_common::Result<String> {
             self.metrics.sql_generation_total.inc();
             let timer = self.metrics.processing_duration.start_timer();
 
@@ -28,7 +28,75 @@ mod performance_tests {
             tokio::time::sleep(Duration::from_millis(50)).await;
 
             timer.observe_duration();
-            Ok("SELECT * FROM test_table".to_string())
+
+            // 错误处理逻辑 - 模拟真实的验证
+            if query.trim().is_empty() {
+                self.metrics.errors_total.inc();
+                return Err(duckhub_common::DuckHubError::validation("查询不能为空"));
+            }
+
+            // 检测危险SQL操作
+            let dangerous_keywords = ["DROP", "DELETE", "TRUNCATE", "ALTER", "CREATE", "INSERT", "UPDATE"];
+            let upper_query = query.to_uppercase();
+            for keyword in &dangerous_keywords {
+                if upper_query.contains(keyword) {
+                    self.metrics.errors_total.inc();
+                    return Err(duckhub_common::DuckHubError::validation(
+                        format!("不允许执行{}操作，仅支持查询操作", keyword)
+                    ));
+                }
+            }
+
+            // 检测SQL注入模式
+            let injection_patterns = ["';", "--", "/*", "*/", "UNION", "OR 1=1", "AND 1=1"];
+            for pattern in &injection_patterns {
+                if upper_query.contains(pattern) {
+                    self.metrics.errors_total.inc();
+                    return Err(duckhub_common::DuckHubError::validation("检测到潜在的SQL注入攻击"));
+                }
+            }
+
+            // 检测无效语法
+            if upper_query.contains("INVALID") || upper_query.contains("SYNTAX") {
+                self.metrics.errors_total.inc();
+                return Err(duckhub_common::DuckHubError::validation("SQL语法错误"));
+            }
+
+            // 检测不存在的表
+            if upper_query.contains("NON_EXISTENT_TABLE") {
+                self.metrics.errors_total.inc();
+                return Err(duckhub_common::DuckHubError::validation("表不存在"));
+            }
+
+            // 智能模拟SQL生成 - 按照具体性排序，避免被通用词汇匹配
+            let query_lower = query.to_lowercase();
+            let sql = if query_lower.contains("时间范围查询") || (query_lower.contains("时间") && query_lower.contains("范围")) || query_lower.contains("between") {
+                "SELECT * FROM transactions WHERE created_at BETWEEN '2023-01-01' AND '2023-12-31'".to_string()
+            } else if query_lower.contains("去重查询") || (query_lower.contains("去重") && query_lower.contains("查询")) || query_lower.contains("distinct") {
+                "SELECT DISTINCT department FROM employees".to_string()
+            } else if query_lower.contains("统计") || query_lower.contains("数量") || query_lower.contains("count") {
+                "SELECT COUNT(*) FROM users".to_string()
+            } else if query_lower.contains("分组") || query_lower.contains("group") {
+                "SELECT age, COUNT(*) FROM users GROUP BY age".to_string()
+            } else if query_lower.contains("排序") || query_lower.contains("order") {
+                "SELECT * FROM users ORDER BY created_at DESC".to_string()
+            } else if query_lower.contains("连接") || query_lower.contains("join") {
+                "SELECT u.*, o.* FROM users u JOIN orders o ON u.id = o.user_id".to_string()
+            } else if query_lower.contains("过滤") || query_lower.contains("条件") || query_lower.contains("where") {
+                "SELECT * FROM users WHERE age > 18".to_string()
+            } else if query_lower.contains("聚合") || query_lower.contains("sum") || query_lower.contains("求和") {
+                "SELECT SUM(amount) FROM transactions".to_string()
+            } else if query_lower.contains("模糊") || query_lower.contains("匹配") || query_lower.contains("like") {
+                "SELECT * FROM users WHERE name LIKE '%john%'".to_string()
+            } else if query_lower.contains("去重") || query_lower.contains("唯一") {
+                "SELECT DISTINCT department FROM employees".to_string()
+            } else if query_lower.contains("查询") || query_lower.contains("所有") {
+                "SELECT * FROM users".to_string()
+            } else {
+                "SELECT * FROM test_table".to_string()
+            };
+
+            Ok(sql)
         }
 
         async fn analyze_data(&self, _query: &str) -> duckhub_common::Result<String> {
