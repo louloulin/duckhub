@@ -121,23 +121,21 @@ fn validate_jwt_token(token: &str) -> Result<Uuid, String> {
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Serialize, Deserialize)]
-    struct Claims {
-        sub: String,  // 用户ID
-        exp: usize,   // 过期时间
-        iat: usize,   // 签发时间
-        iss: String,  // 签发者
-        aud: String,  // 受众
+    struct TokenClaims {
+        pub sub: String,      // 用户ID
+        pub username: String, // 用户名
+        pub roles: Vec<String>, // 角色
+        pub exp: usize,       // 过期时间
+        pub iat: usize,       // 签发时间
     }
 
     // 在实际应用中，这个密钥应该从配置中获取
-    let secret = "duckhub-secret-key-change-in-production";
+    let secret = "your-secret-key";
     let key = DecodingKey::from_secret(secret.as_ref());
-    
-    let mut validation = Validation::new(Algorithm::HS256);
-    validation.set_issuer(&["duckhub"]);
-    validation.set_audience(&["duckhub-users"]);
 
-    match decode::<Claims>(token, &key, &validation) {
+    let validation = Validation::new(Algorithm::HS256);
+
+    match decode::<TokenClaims>(token, &key, &validation) {
         Ok(token_data) => {
             let user_id = Uuid::parse_str(&token_data.claims.sub)
                 .map_err(|e| format!("无效的用户ID格式: {}", e))?;

@@ -192,6 +192,9 @@ fn configure_routes(cfg: &mut web::ServiceConfig) {
                 .route("/chat", web::post().to(ai_chat))
                 .route("/analyze", web::post().to(ai_analyze))
                 .route("/suggest", web::post().to(ai_suggest))
+                .route("/session", web::post().to(create_ai_session))
+                .route("/session/{session_id}/history", web::get().to(get_session_history))
+                .route("/nlp-query", web::post().to(process_nlp_query))
         )
         
         // 监控相关
@@ -202,6 +205,24 @@ fn configure_routes(cfg: &mut web::ServiceConfig) {
                 .route("/performance", web::get().to(get_performance_metrics))
         )
         
+        // 数据探索相关
+        .service(
+            web::scope("/api/v1/data")
+                .route("/tables", web::get().to(get_tables))
+                .route("/tables/{name}/schema", web::get().to(get_table_schema))
+                .route("/tables/{name}/data", web::get().to(get_table_data))
+                .route("/tables/{name}/stats", web::get().to(get_table_stats))
+                .route("/tables/{name}/preview", web::get().to(preview_table))
+        )
+
+        // 仪表板相关
+        .service(
+            web::scope("/api/v1/dashboard")
+                .route("/metrics", web::get().to(get_dashboard_metrics))
+                .route("/query-trends", web::get().to(get_query_trends))
+                .route("/system-health", web::get().to(get_system_health_dashboard))
+        )
+
         // DuckLake相关
         .service(
             web::scope("/api/v1/ducklake")

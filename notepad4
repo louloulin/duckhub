@@ -1,37 +1,37 @@
+根据 `/Users/louloulin/Documents/augment-projects/duckhub/plan4.md` 文件中制定的4阶段实施计划，按照以下步骤系统性地实现前后端API对接功能：
 
-根据 `/Users/louloulin/Documents/augment-projects/duckhub/rig.md` 文件中制定的基于Rig框架的AI Agent改造计划，请按照以下步骤实施：
+**实施要求：**
+1. **按阶段顺序执行**：严格按照 Phase 1 → Phase 2 → Phase 3 → Phase 4 的顺序实施
+2. **每个阶段包含以下步骤**：
+   - 实现该阶段规划的所有API端点（参考plan4.md中的具体API列表）
+   - 编写对应的Rust后端处理器代码
+   - 更新路由配置
+   - 实现相应的数据模型和业务逻辑
+   - 编写单元测试和集成测试
+   - 使用curl或其他工具进行API功能验证
+   - 确保所有测试通过且API响应正确
 
-**第一阶段：核心功能实现**
-1. 按照rig.md中Phase 1的详细计划，重构现有的 `crates/services/ai-agent/src/rig_agent.rs` 文件
-2. 实现统一的RigAIService，包括：
-   - 基于Rig框架的DeepSeek客户端集成
-   - 专业化Agent设计（SQLAgent、AnalysisAgent、ChatAgent、RecommendationAgent）
-   - 统一的配置管理和错误处理
-   - Prometheus监控指标集成
+3. **验证标准**：
+   - API能够正确响应请求（HTTP 200状态码）
+   - 返回数据格式符合前端期望
+   - 认证和权限控制正常工作
+   - 性能满足要求（响应时间<100ms）
 
-**第二阶段：工具系统实现**
-3. 根据计划实现标准化的工具系统：
-   - 基于Rig Tool trait重构现有工具
-   - 实现DatabaseQueryTool、SchemaInspectorTool、DataAnalyzerTool等核心工具
-   - 创建统一的DuckHubToolSet
+4. **文档更新**：
+   - 每完成一个阶段后，更新 `plan4.md` 文件
+   - 在对应的检查清单中标记已完成的项目（使用 ✅ 符号）
+   - 添加实施过程中的重要发现和注意事项
+   - 记录测试结果和性能数据
 
-**第三阶段：测试验证**
-4. 为所有新实现的功能编写完整的单元测试和集成测试
-5. 验证以下关键指标：
-   - SQL生成准确率 > 95%
-   - 工具调用成功率 > 95%
-   - 响应时间 < 2秒
-   - 所有测试用例通过
+5. **优先实现顺序**：
+   - Phase 1: 数据探索API、仪表板API、AI会话管理API
+   - Phase 2: 时间序列分析API、窗口函数分析API  
+   - Phase 3: 系统配置管理API、监控增强API
+   - Phase 4: 文件处理API、实时功能API
 
-**第四阶段：清理和文档更新**
-6. 测试验证通过后：
-   - 删除旧的实现文件（deepseek_agent.rs等）
-   - 更新rig.md文件，标记已完成的任务为"✅ 已完成"
-   - 更新实施进度和遇到的技术细节
-
-**要求：**
-- 所有代码注释和文档使用中文
-- 保持与现有DuckHub系统的兼容性
-- 遵循rig.md中的技术架构和设计模式
-- 确保企业级代码质量和安全性
-- 实施过程中如遇到问题，及时更新rig.md中的风险缓解策略
+**输出要求：**
+- 使用中文进行所有说明和注释
+- 提供详细的实施进度报告
+- 包含具体的代码实现示例
+- 记录遇到的问题和解决方案
+- 更新后的plan4.md应反映真实的完成

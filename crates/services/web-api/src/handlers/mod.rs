@@ -7,6 +7,8 @@ pub mod ai;
 pub mod monitoring;
 pub mod ducklake;
 pub mod health;
+pub mod data;
+pub mod dashboard;
 
 pub use auth::*;
 pub use query::*;
@@ -15,6 +17,8 @@ pub use ai::*;
 pub use monitoring::*;
 pub use ducklake::*;
 pub use health::*;
+pub use data::*;
+pub use dashboard::*;
 
 use actix_web::{web, HttpResponse, Result as ActixResult};
 use serde_json::json;

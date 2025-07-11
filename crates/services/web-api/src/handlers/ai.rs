@@ -4,6 +4,9 @@ use actix_web::{web, HttpResponse, Result as ActixResult};
 use serde::{Deserialize, Serialize};
 use tracing::{info, error, instrument};
 use validator::Validate;
+use uuid::Uuid;
+use chrono::{DateTime, Utc};
+use std::collections::HashMap;
 use crate::{AppState, success_response, error_response};
 
 /// AI聊天请求
@@ -287,5 +290,257 @@ mod tests {
             query_type: Some(QueryType::Select),
         };
         assert!(valid_request.validate().is_ok());
+    }
+}
+
+// ==================== AI会话管理功能 ====================
+
+/// AI会话信息
+#[derive(Debug, Serialize, Clone)]
+pub struct AISession {
+    pub session_id: String,
+    pub session_type: String, // "chat", "analysis", "query_builder"
+    pub created_at: String,
+    pub last_activity: String,
+    pub message_count: u32,
+    pub user_id: String,
+    pub title: Option<String>,
+    pub status: String, // "active", "archived", "expired"
+}
+
+/// 创建会话请求
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateSessionRequest {
+    #[validate(length(min = 1, max = 50))]
+    pub session_type: String, // "chat", "analysis", "query_builder"
+    pub title: Option<String>,
+    pub initial_context: Option<serde_json::Value>,
+}
+
+/// 会话历史消息
+#[derive(Debug, Serialize, Clone)]
+pub struct SessionMessage {
+    pub message_id: String,
+    pub session_id: String,
+    pub role: String, // "user", "assistant"
+    pub content: String,
+    pub timestamp: String,
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// 会话历史响应
+#[derive(Debug, Serialize)]
+pub struct SessionHistoryResponse {
+    pub session_id: String,
+    pub messages: Vec<SessionMessage>,
+    pub total_messages: u32,
+    pub session_info: AISession,
+}
+
+/// 会话历史查询参数
+#[derive(Debug, Deserialize)]
+pub struct SessionHistoryQuery {
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+    pub include_metadata: Option<bool>,
+}
+
+/// NLP查询请求
+#[derive(Debug, Deserialize, Validate)]
+pub struct NLPQueryRequest {
+    #[validate(length(min = 1, max = 1000))]
+    pub query: String,
+    pub context: Option<serde_json::Value>,
+    pub session_id: Option<String>,
+}
+
+/// NLP查询响应
+#[derive(Debug, Serialize)]
+pub struct NLPQueryResponse {
+    pub original_query: String,
+    pub interpreted_intent: String,
+    pub generated_sql: String,
+    pub confidence: f64,
+    pub explanation: String,
+    pub suggested_tables: Vec<String>,
+    pub parameters: Option<HashMap<String, serde_json::Value>>,
+    pub session_id: Option<String>,
+}
+
+/// 创建AI会话
+#[instrument(skip(app_state))]
+pub async fn create_ai_session(
+    app_state: web::Data<AppState>,
+    request: web::Json<CreateSessionRequest>
+) -> ActixResult<HttpResponse> {
+    info!("创建AI会话，类型: {}", request.session_type);
+
+    if let Err(e) = request.validate() {
+        error!("会话创建请求验证失败: {:?}", e);
+        return Ok(error_response("请求参数无效", 400));
+    }
+
+    let session_id = Uuid::new_v4().to_string();
+    let now = Utc::now().to_rfc3339();
+
+    let session = AISession {
+        session_id: session_id.clone(),
+        session_type: request.session_type.clone(),
+        created_at: now.clone(),
+        last_activity: now,
+        message_count: 0,
+        user_id: "current-user-id".to_string(), // 从认证中获取
+        title: request.title.clone(),
+        status: "active".to_string(),
+    };
+
+    info!("成功创建AI会话: {}", session_id);
+    Ok(success_response(session))
+}
+
+/// 获取会话历史
+#[instrument(skip(app_state))]
+pub async fn get_session_history(
+    app_state: web::Data<AppState>,
+    path: web::Path<String>,
+    query: web::Query<SessionHistoryQuery>
+) -> ActixResult<HttpResponse> {
+    let session_id = path.into_inner();
+    let limit = query.limit.unwrap_or(50).min(200);
+    let offset = query.offset.unwrap_or(0);
+
+    info!("获取会话历史: {}, limit: {}, offset: {}", session_id, limit, offset);
+
+    // 模拟会话信息
+    let session_info = AISession {
+        session_id: session_id.clone(),
+        session_type: "chat".to_string(),
+        created_at: "2024-01-11T10:00:00Z".to_string(),
+        last_activity: Utc::now().to_rfc3339(),
+        message_count: 8,
+        user_id: "current-user-id".to_string(),
+        title: Some("数据分析咨询".to_string()),
+        status: "active".to_string(),
+    };
+
+    // 模拟历史消息
+    let messages = vec![
+        SessionMessage {
+            message_id: "msg-001".to_string(),
+            session_id: session_id.clone(),
+            role: "user".to_string(),
+            content: "你好，我想分析一下最近的交易数据".to_string(),
+            timestamp: "2024-01-11T10:00:00Z".to_string(),
+            metadata: None,
+        },
+        SessionMessage {
+            message_id: "msg-002".to_string(),
+            session_id: session_id.clone(),
+            role: "assistant".to_string(),
+            content: "您好！我可以帮您分析交易数据。请告诉我您想了解哪些方面的信息？比如交易量、金额分布、时间趋势等。".to_string(),
+            timestamp: "2024-01-11T10:00:05Z".to_string(),
+            metadata: Some(serde_json::json!({
+                "suggested_sql": "SELECT COUNT(*), SUM(amount) FROM transactions WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'"
+            })),
+        },
+        SessionMessage {
+            message_id: "msg-003".to_string(),
+            session_id: session_id.clone(),
+            role: "user".to_string(),
+            content: "我想看看最近一周每天的交易量和总金额".to_string(),
+            timestamp: "2024-01-11T10:01:00Z".to_string(),
+            metadata: None,
+        },
+        SessionMessage {
+            message_id: "msg-004".to_string(),
+            session_id: session_id.clone(),
+            role: "assistant".to_string(),
+            content: "好的，我为您生成了查询最近一周每日交易统计的SQL。这个查询会显示每天的交易数量和总金额。".to_string(),
+            timestamp: "2024-01-11T10:01:05Z".to_string(),
+            metadata: Some(serde_json::json!({
+                "generated_sql": "SELECT DATE(created_at) as date, COUNT(*) as transaction_count, SUM(amount) as total_amount FROM transactions WHERE created_at >= CURRENT_DATE - INTERVAL '7 days' GROUP BY DATE(created_at) ORDER BY date",
+                "confidence": 0.95
+            })),
+        },
+    ];
+
+    let response = SessionHistoryResponse {
+        session_id,
+        messages,
+        total_messages: 8,
+        session_info,
+    };
+
+    info!("成功获取会话历史，返回 {} 条消息", response.messages.len());
+    Ok(success_response(response))
+}
+
+/// 处理自然语言查询
+#[instrument(skip(app_state))]
+pub async fn process_nlp_query(
+    app_state: web::Data<AppState>,
+    request: web::Json<NLPQueryRequest>
+) -> ActixResult<HttpResponse> {
+    info!("处理自然语言查询: {}", request.query);
+
+    if let Err(e) = request.validate() {
+        error!("NLP查询请求验证失败: {:?}", e);
+        return Ok(error_response("请求参数无效", 400));
+    }
+
+    // 模拟NLP处理逻辑
+    let (intent, sql, confidence, explanation, tables) = analyze_nlp_query(&request.query);
+
+    let response = NLPQueryResponse {
+        original_query: request.query.clone(),
+        interpreted_intent: intent,
+        generated_sql: sql,
+        confidence,
+        explanation,
+        suggested_tables: tables,
+        parameters: None,
+        session_id: request.session_id.clone(),
+    };
+
+    info!("NLP查询处理完成，置信度: {:.2}", response.confidence);
+    Ok(success_response(response))
+}
+
+/// 分析自然语言查询的辅助函数
+fn analyze_nlp_query(query: &str) -> (String, String, f64, String, Vec<String>) {
+    let query_lower = query.to_lowercase();
+
+    if query_lower.contains("交易") && query_lower.contains("统计") {
+        (
+            "查询交易统计信息".to_string(),
+            "SELECT COUNT(*) as total_transactions, SUM(amount) as total_amount, AVG(amount) as avg_amount FROM transactions WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'".to_string(),
+            0.92,
+            "根据您的查询，我理解您想要获取交易的统计信息，包括总数量、总金额和平均金额".to_string(),
+            vec!["transactions".to_string()],
+        )
+    } else if query_lower.contains("用户") && query_lower.contains("数量") {
+        (
+            "查询用户数量".to_string(),
+            "SELECT COUNT(*) as user_count FROM users WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'".to_string(),
+            0.88,
+            "您想了解用户数量，我为您生成了统计用户总数的查询".to_string(),
+            vec!["users".to_string()],
+        )
+    } else if query_lower.contains("最近") && query_lower.contains("天") {
+        (
+            "查询最近时间段的数据".to_string(),
+            "SELECT * FROM transactions WHERE created_at >= CURRENT_DATE - INTERVAL '7 days' ORDER BY created_at DESC LIMIT 100".to_string(),
+            0.85,
+            "您想查看最近几天的数据，我为您生成了相应的时间范围查询".to_string(),
+            vec!["transactions".to_string()],
+        )
+    } else {
+        (
+            "通用数据查询".to_string(),
+            "SELECT * FROM transactions LIMIT 10".to_string(),
+            0.60,
+            "我理解您想要查询数据，但具体需求不够明确，为您提供了一个基础查询示例".to_string(),
+            vec!["transactions".to_string(), "users".to_string()],
+        )
     }
 }
