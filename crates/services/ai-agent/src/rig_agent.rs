@@ -71,19 +71,62 @@ pub struct RigAIService {
     rag_service: Option<Arc<RigRagService>>,
 }
 
-/// Rig AI配置
+/// Rig AI配置 - 企业级配置管理
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RigAIConfig {
     /// DeepSeek API密钥
     pub deepseek_api_key: String,
     /// 模型配置
     pub model_config: ModelConfig,
-    /// Agent配置
-    pub agent_configs: HashMap<String, AgentConfig>,
+    /// Agent配置映射
+    pub agent_configs: AgentConfigs,
     /// 工具配置
     pub tool_configs: ToolConfigs,
     /// RAG配置
     pub rag_config: RagConfig,
+    /// 安全配置
+    pub security_config: SecurityConfig,
+    /// 性能配置
+    pub performance_config: PerformanceConfig,
+}
+
+/// 安全配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityConfig {
+    /// 是否启用API密钥验证
+    pub enable_api_key_validation: bool,
+    /// 最大并发请求数
+    pub max_concurrent_requests: u32,
+    /// 请求速率限制（每分钟）
+    pub rate_limit_per_minute: u32,
+    /// 是否启用SQL注入检测
+    pub enable_sql_injection_detection: bool,
+}
+
+/// 性能配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceConfig {
+    /// 连接池大小
+    pub connection_pool_size: u32,
+    /// 请求超时时间（秒）
+    pub request_timeout_seconds: u64,
+    /// 缓存TTL（秒）
+    pub cache_ttl_seconds: u64,
+    /// 是否启用响应缓存
+    pub enable_response_cache: bool,
+}
+
+/// Agent配置集合 - 结构化管理
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConfigs {
+    /// SQL生成Agent配置
+    pub sql_agent: AgentConfig,
+    /// 数据分析Agent配置
+    pub analysis_agent: AgentConfig,
+    /// 聊天Agent配置
+    pub chat_agent: AgentConfig,
+    /// 推荐Agent配置
+    pub recommendation_agent: AgentConfig,
 }
 
 /// 模型配置
@@ -257,7 +300,7 @@ impl RigAIMetrics {
     }
 }
 
-/// DuckHub工具集
+/// DuckHub工具集 - 企业级工具管理
 #[derive(Clone)]
 pub struct DuckHubToolSet {
     /// 数据库查询工具
@@ -268,6 +311,151 @@ pub struct DuckHubToolSet {
     pub data_analyzer: DataAnalyzerTool,
     /// 推荐工具
     pub recommendation_tool: RecommendationTool,
+    /// 工具权限管理器
+    pub permission_manager: ToolPermissionManager,
+    /// 工具性能监控器
+    pub performance_monitor: ToolPerformanceMonitor,
+}
+
+/// 工具权限管理器
+#[derive(Clone)]
+pub struct ToolPermissionManager {
+    /// 用户权限映射
+    pub user_permissions: std::collections::HashMap<String, Vec<String>>,
+    /// 工具访问控制列表
+    pub tool_acl: std::collections::HashMap<String, ToolPermission>,
+}
+
+/// 工具权限定义
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolPermission {
+    /// 工具名称
+    pub tool_name: String,
+    /// 允许的用户角色
+    pub allowed_roles: Vec<String>,
+    /// 最大调用频率（每分钟）
+    pub max_calls_per_minute: u32,
+    /// 是否需要审批
+    pub requires_approval: bool,
+}
+
+/// 工具性能监控器
+#[derive(Clone)]
+pub struct ToolPerformanceMonitor {
+    /// 工具调用计数器
+    pub call_counters: std::collections::HashMap<String, u64>,
+    /// 工具响应时间记录
+    pub response_times: std::collections::HashMap<String, Vec<u64>>,
+    /// 错误计数器
+    pub error_counters: std::collections::HashMap<String, u64>,
+}
+
+impl ToolPermissionManager {
+    /// 创建新的权限管理器
+    pub fn new() -> Self {
+        let mut tool_acl = std::collections::HashMap::new();
+
+        // 设置默认工具权限
+        tool_acl.insert("database_query".to_string(), ToolPermission {
+            tool_name: "database_query".to_string(),
+            allowed_roles: vec!["admin".to_string(), "analyst".to_string()],
+            max_calls_per_minute: 60,
+            requires_approval: false,
+        });
+
+        tool_acl.insert("schema_inspector".to_string(), ToolPermission {
+            tool_name: "schema_inspector".to_string(),
+            allowed_roles: vec!["admin".to_string(), "analyst".to_string(), "user".to_string()],
+            max_calls_per_minute: 30,
+            requires_approval: false,
+        });
+
+        Self {
+            user_permissions: std::collections::HashMap::new(),
+            tool_acl,
+        }
+    }
+
+    /// 检查用户是否有权限使用指定工具
+    pub fn check_permission(&self, user_id: &str, tool_name: &str) -> bool {
+        if let Some(user_roles) = self.user_permissions.get(user_id) {
+            if let Some(tool_permission) = self.tool_acl.get(tool_name) {
+                return user_roles.iter().any(|role| tool_permission.allowed_roles.contains(role));
+            }
+        }
+        false
+    }
+}
+
+impl ToolPerformanceMonitor {
+    /// 创建新的性能监控器
+    pub fn new() -> Self {
+        Self {
+            call_counters: std::collections::HashMap::new(),
+            response_times: std::collections::HashMap::new(),
+            error_counters: std::collections::HashMap::new(),
+        }
+    }
+
+    /// 记录工具调用
+    pub fn record_call(&mut self, tool_name: &str, response_time_ms: u64) {
+        // 增加调用计数
+        *self.call_counters.entry(tool_name.to_string()).or_insert(0) += 1;
+
+        // 记录响应时间
+        self.response_times
+            .entry(tool_name.to_string())
+            .or_insert_with(Vec::new)
+            .push(response_time_ms);
+    }
+
+    /// 记录工具错误
+    pub fn record_error(&mut self, tool_name: &str) {
+        *self.error_counters.entry(tool_name.to_string()).or_insert(0) += 1;
+    }
+
+    /// 获取工具性能统计
+    pub fn get_stats(&self, tool_name: &str) -> Option<ToolStats> {
+        let call_count = self.call_counters.get(tool_name).copied().unwrap_or(0);
+        let error_count = self.error_counters.get(tool_name).copied().unwrap_or(0);
+
+        if let Some(response_times) = self.response_times.get(tool_name) {
+            let avg_response_time = if !response_times.is_empty() {
+                response_times.iter().sum::<u64>() / response_times.len() as u64
+            } else {
+                0
+            };
+
+            Some(ToolStats {
+                tool_name: tool_name.to_string(),
+                call_count,
+                error_count,
+                avg_response_time_ms: avg_response_time,
+                success_rate: if call_count > 0 {
+                    ((call_count - error_count) as f64 / call_count as f64) * 100.0
+                } else {
+                    0.0
+                },
+            })
+        } else {
+            None
+        }
+    }
+}
+
+/// 工具性能统计
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolStats {
+    /// 工具名称
+    pub tool_name: String,
+    /// 调用次数
+    pub call_count: u64,
+    /// 错误次数
+    pub error_count: u64,
+    /// 平均响应时间（毫秒）
+    pub avg_response_time_ms: u64,
+    /// 成功率（百分比）
+    pub success_rate: f64,
 }
 
 /// Agent响应类型
@@ -1002,6 +1190,8 @@ impl RigAIService {
             recommendation_tool: RecommendationTool::new(
                 config.tool_configs.recommendation.clone(),
             ),
+            permission_manager: ToolPermissionManager::new(),
+            performance_monitor: ToolPerformanceMonitor::new(),
         }
     }
 
@@ -1011,8 +1201,7 @@ impl RigAIService {
         config: &RigAIConfig,
         toolset: &DuckHubToolSet,
     ) -> Agent<deepseek::DeepSeekCompletionModel> {
-        let sql_config = config.agent_configs.get("sql_generation")
-            .expect("SQL生成Agent配置缺失");
+        let sql_config = &config.agent_configs.sql_agent;
 
         let mut builder = client
             .agent(&config.model_config.primary_model)
@@ -1035,8 +1224,7 @@ impl RigAIService {
         config: &RigAIConfig,
         toolset: &DuckHubToolSet,
     ) -> Agent<deepseek::DeepSeekCompletionModel> {
-        let analysis_config = config.agent_configs.get("data_analysis")
-            .expect("数据分析Agent配置缺失");
+        let analysis_config = &config.agent_configs.analysis_agent;
 
         let mut builder = client
             .agent(&config.model_config.primary_model)
@@ -1059,8 +1247,7 @@ impl RigAIService {
         config: &RigAIConfig,
         toolset: &DuckHubToolSet,
     ) -> Agent<deepseek::DeepSeekCompletionModel> {
-        let chat_config = config.agent_configs.get("chat")
-            .expect("聊天Agent配置缺失");
+        let chat_config = &config.agent_configs.chat_agent;
 
         let mut builder = client
             .agent(&config.model_config.primary_model)
@@ -1083,8 +1270,7 @@ impl RigAIService {
         config: &RigAIConfig,
         toolset: &DuckHubToolSet,
     ) -> Agent<deepseek::DeepSeekCompletionModel> {
-        let recommendation_config = config.agent_configs.get("recommendation")
-            .expect("推荐Agent配置缺失");
+        let recommendation_config = &config.agent_configs.recommendation_agent;
 
         let mut builder = client
             .agent(&config.model_config.primary_model)
@@ -1323,44 +1509,6 @@ impl RigAIConfig {
 
 impl Default for RigAIConfig {
     fn default() -> Self {
-        let mut agent_configs = HashMap::new();
-
-        // SQL生成Agent配置
-        agent_configs.insert("sql_generation".to_string(), AgentConfig {
-            name: "SQL生成Agent".to_string(),
-            preamble: Self::get_sql_generation_prompt(),
-            temperature: 0.1, // 低温度确保准确性
-            max_tokens: 2000,
-            enable_tools: true,
-        });
-
-        // 数据分析Agent配置
-        agent_configs.insert("data_analysis".to_string(), AgentConfig {
-            name: "数据分析Agent".to_string(),
-            preamble: Self::get_data_analysis_prompt(),
-            temperature: 0.3, // 中等温度平衡创造性和准确性
-            max_tokens: 4000,
-            enable_tools: true,
-        });
-
-        // 聊天Agent配置
-        agent_configs.insert("chat".to_string(), AgentConfig {
-            name: "聊天Agent".to_string(),
-            preamble: Self::get_chat_prompt(),
-            temperature: 0.7, // 较高温度增加对话自然性
-            max_tokens: 2000,
-            enable_tools: true,
-        });
-
-        // 推荐Agent配置
-        agent_configs.insert("recommendation".to_string(), AgentConfig {
-            name: "推荐Agent".to_string(),
-            preamble: Self::get_recommendation_prompt(),
-            temperature: 0.5, // 中等温度平衡准确性和多样性
-            max_tokens: 3000,
-            enable_tools: true,
-        });
-
         let deepseek_api_key = std::env::var("DEEPSEEK_API_KEY")
             .unwrap_or_else(|_| "sk-a4f888023ea74cef8afae36dc8581512".to_string());
 
@@ -1378,9 +1526,11 @@ impl Default for RigAIConfig {
         Self {
             deepseek_api_key,
             model_config: ModelConfig::default(),
-            agent_configs,
+            agent_configs: AgentConfigs::default(),
             tool_configs: ToolConfigs::default(),
             rag_config: RagConfig::default(),
+            security_config: SecurityConfig::default(),
+            performance_config: PerformanceConfig::default(),
         }
     }
 }
@@ -1430,6 +1580,63 @@ impl Default for RecommendationConfig {
         Self {
             max_recommendations: 10,
             confidence_threshold: 0.7,
+        }
+    }
+}
+
+impl Default for AgentConfigs {
+    fn default() -> Self {
+        Self {
+            sql_agent: AgentConfig {
+                name: "SQL专家".to_string(),
+                preamble: RigAIConfig::get_sql_generation_prompt(),
+                temperature: 0.1, // 低温度确保准确性
+                max_tokens: 2000,
+                enable_tools: true,
+            },
+            analysis_agent: AgentConfig {
+                name: "数据分析师".to_string(),
+                preamble: RigAIConfig::get_data_analysis_prompt(),
+                temperature: 0.3, // 中等温度平衡创造性和准确性
+                max_tokens: 4000,
+                enable_tools: true,
+            },
+            chat_agent: AgentConfig {
+                name: "智能助手".to_string(),
+                preamble: RigAIConfig::get_chat_prompt(),
+                temperature: 0.7, // 较高温度增加对话自然性
+                max_tokens: 2000,
+                enable_tools: true,
+            },
+            recommendation_agent: AgentConfig {
+                name: "推荐专家".to_string(),
+                preamble: RigAIConfig::get_recommendation_prompt(),
+                temperature: 0.5, // 中等温度平衡准确性和多样性
+                max_tokens: 3000,
+                enable_tools: true,
+            },
+        }
+    }
+}
+
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            enable_api_key_validation: true,
+            max_concurrent_requests: 100,
+            rate_limit_per_minute: 1000,
+            enable_sql_injection_detection: true,
+        }
+    }
+}
+
+impl Default for PerformanceConfig {
+    fn default() -> Self {
+        Self {
+            connection_pool_size: 10,
+            request_timeout_seconds: 30,
+            cache_ttl_seconds: 300, // 5分钟
+            enable_response_cache: true,
         }
     }
 }

@@ -82,10 +82,10 @@ mod tests {
         assert!(config.model_config.primary_model.contains("deepseek"));
         
         // 验证Agent配置
-        assert!(config.agent_configs.contains_key("sql_generation"));
-        assert!(config.agent_configs.contains_key("data_analysis"));
-        assert!(config.agent_configs.contains_key("chat"));
-        assert!(config.agent_configs.contains_key("recommendation"));
+        assert_eq!(config.agent_configs.sql_agent.name, "SQL专家");
+        assert_eq!(config.agent_configs.analysis_agent.name, "数据分析师");
+        assert_eq!(config.agent_configs.chat_agent.name, "智能助手");
+        assert_eq!(config.agent_configs.recommendation_agent.name, "推荐专家");
         
         // 验证工具配置
         assert!(config.tool_configs.database_query.max_rows > 0);
@@ -185,5 +185,113 @@ mod tests {
         assert_eq!(doc.content, "这是一个测试文档的内容");
         assert_eq!(doc.doc_type, DocumentType::SqlPattern);
         assert!(doc.metadata.is_object());
+    }
+
+    #[tokio::test]
+    async fn test_tool_permission_manager() {
+        use crate::rig_agent::ToolPermissionManager;
+
+        let mut manager = ToolPermissionManager::new();
+
+        // 测试默认权限设置
+        assert!(manager.tool_acl.contains_key("database_query"));
+        assert!(manager.tool_acl.contains_key("schema_inspector"));
+
+        // 添加用户权限
+        manager.user_permissions.insert(
+            "admin_user".to_string(),
+            vec!["admin".to_string()]
+        );
+        manager.user_permissions.insert(
+            "analyst_user".to_string(),
+            vec!["analyst".to_string()]
+        );
+        manager.user_permissions.insert(
+            "regular_user".to_string(),
+            vec!["user".to_string()]
+        );
+
+        // 测试权限检查
+        assert!(manager.check_permission("admin_user", "database_query"));
+        assert!(manager.check_permission("analyst_user", "database_query"));
+        assert!(!manager.check_permission("regular_user", "database_query"));
+
+        assert!(manager.check_permission("admin_user", "schema_inspector"));
+        assert!(manager.check_permission("analyst_user", "schema_inspector"));
+        assert!(manager.check_permission("regular_user", "schema_inspector"));
+    }
+
+    #[tokio::test]
+    async fn test_tool_performance_monitor() {
+        use crate::rig_agent::ToolPerformanceMonitor;
+
+        let mut monitor = ToolPerformanceMonitor::new();
+
+        // 记录工具调用
+        monitor.record_call("database_query", 150);
+        monitor.record_call("database_query", 200);
+        monitor.record_call("database_query", 100);
+
+        // 记录错误
+        monitor.record_error("database_query");
+
+        // 获取统计信息
+        let stats = monitor.get_stats("database_query").unwrap();
+        assert_eq!(stats.tool_name, "database_query");
+        assert_eq!(stats.call_count, 3);
+        assert_eq!(stats.error_count, 1);
+        assert_eq!(stats.avg_response_time_ms, 150); // (150+200+100)/3 = 150
+        assert!((stats.success_rate - 66.67).abs() < 0.1); // 2/3 * 100 ≈ 66.67%
+    }
+
+    #[tokio::test]
+    async fn test_security_config() {
+        use crate::rig_agent::SecurityConfig;
+
+        let config = SecurityConfig::default();
+
+        // 验证默认安全配置
+        assert!(config.enable_api_key_validation);
+        assert_eq!(config.max_concurrent_requests, 100);
+        assert_eq!(config.rate_limit_per_minute, 1000);
+        assert!(config.enable_sql_injection_detection);
+    }
+
+    #[tokio::test]
+    async fn test_performance_config() {
+        use crate::rig_agent::PerformanceConfig;
+
+        let config = PerformanceConfig::default();
+
+        // 验证默认性能配置
+        assert_eq!(config.connection_pool_size, 10);
+        assert_eq!(config.request_timeout_seconds, 30);
+        assert_eq!(config.cache_ttl_seconds, 300); // 5分钟
+        assert!(config.enable_response_cache);
+    }
+
+    #[tokio::test]
+    async fn test_agent_configs_structure() {
+        use crate::rig_agent::AgentConfigs;
+
+        let configs = AgentConfigs::default();
+
+        // 验证所有Agent配置都存在
+        assert_eq!(configs.sql_agent.name, "SQL专家");
+        assert_eq!(configs.analysis_agent.name, "数据分析师");
+        assert_eq!(configs.chat_agent.name, "智能助手");
+        assert_eq!(configs.recommendation_agent.name, "推荐专家");
+
+        // 验证温度设置合理
+        assert_eq!(configs.sql_agent.temperature, 0.1); // 低温度确保准确性
+        assert_eq!(configs.analysis_agent.temperature, 0.3); // 中等温度
+        assert_eq!(configs.chat_agent.temperature, 0.7); // 高温度增加自然性
+        assert_eq!(configs.recommendation_agent.temperature, 0.5); // 平衡温度
+
+        // 验证所有Agent都启用了工具
+        assert!(configs.sql_agent.enable_tools);
+        assert!(configs.analysis_agent.enable_tools);
+        assert!(configs.chat_agent.enable_tools);
+        assert!(configs.recommendation_agent.enable_tools);
     }
 }
