@@ -12,6 +12,7 @@ members = [
     "crates/services/query-analytics",
     "crates/services/monitoring",
     "crates/services/ai-agent",
+    "crates/services/web-api",
     "crates/tools/cli",
 ]
 

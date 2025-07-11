@@ -10,8 +10,6 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatNumber, formatDuration, formatPercentage } from '@/lib/utils'
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   BarChart,
@@ -21,9 +19,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from 'recharts'
 import {
   Activity,
@@ -36,7 +31,7 @@ import {
 
 export default function Dashboard() {
   const dispatch = useDispatch<AppDispatch>()
-  const { metrics, queryTrends, performanceData, systemHealth, loading } = useSelector(
+  const { metrics, queryTrends, performanceData, systemHealth } = useSelector(
     (state: RootState) => state.dashboard
   )
 
@@ -95,208 +90,369 @@ export default function Dashboard() {
   ] : []
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">仪表板</h1>
-        <p className="text-muted-foreground">
-          DuckHub金融数据平台实时监控和分析
-        </p>
+    <div className="space-y-8 fade-in">
+      {/* 欢迎区域 - 简化版 */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-100 card-hover">
+        <div className="flex items-center justify-between">
+          <div className="slide-in-left">
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <span className="gradient-text">
+                Hi, Welcome back
+              </span>
+              <span className="text-2xl float">👋</span>
+            </h1>
+            <p className="text-gray-600 mt-2 text-lg">
+              DuckHub金融数据平台 - 智能分析与实时监控
+            </p>
+          </div>
+          <div className="flex items-center space-x-4 scale-in">
+            <div className="text-sm text-gray-500 glass px-4 py-2 rounded-xl">
+              <span className="text-gray-700">最后更新:</span> {new Date().toLocaleTimeString('zh-CN')}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* 指标卡片 */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {metricCards.map((metric) => {
-          const Icon = metric.icon
-          return (
-            <Card key={metric.title}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {metric.title}
-                </CardTitle>
-                <Icon className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{metric.value}</div>
-                <p className="text-xs text-muted-foreground">
-                  {metric.description}
-                </p>
-                <div className="mt-2 flex items-center text-xs">
-                  <span className="text-green-600">{metric.trend}</span>
-                  <span className="ml-1 text-muted-foreground">较昨日</span>
+      <div className="space-y-8">
+
+        {/* 核心指标卡片 - 现代白色风格 */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {metricCards.map((metric, index) => {
+            const Icon = metric.icon
+            const trendColor = metric.trend.startsWith('+') ? 'text-green-600' :
+                              metric.trend.startsWith('-') ? 'text-red-600' : 'text-gray-600'
+            const cardColors = [
+              { bg: 'bg-gradient-to-br from-blue-50 to-blue-100', border: 'border-blue-200', icon: 'bg-blue-500', text: 'text-blue-900' },
+              { bg: 'bg-gradient-to-br from-green-50 to-green-100', border: 'border-green-200', icon: 'bg-green-500', text: 'text-green-900' },
+              { bg: 'bg-gradient-to-br from-yellow-50 to-yellow-100', border: 'border-yellow-200', icon: 'bg-yellow-500', text: 'text-yellow-900' },
+              { bg: 'bg-gradient-to-br from-purple-50 to-purple-100', border: 'border-purple-200', icon: 'bg-purple-500', text: 'text-purple-900' }
+            ]
+            const colors = cardColors[index]
+
+            return (
+              <Card
+                key={metric.title}
+                className={`${colors.bg} ${colors.border} border-2 shadow-lg card-hover scale-in`}
+                style={{ animationDelay: `${index * 0.1}s` }}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                  <CardTitle className={`text-sm font-semibold ${colors.text}`}>
+                    {metric.title}
+                  </CardTitle>
+                  <div className={`p-3 rounded-xl ${colors.icon} shadow-lg float`}>
+                    <Icon className="h-5 w-5 text-white" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-3xl font-bold ${colors.text} mb-2`}>
+                    {metric.value}
+                  </div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {metric.description}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center text-sm">
+                      <span className={`font-semibold ${trendColor}`}>{metric.trend}</span>
+                      <span className="ml-2 text-gray-500">较昨日</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full pulse-slow"></div>
+                      <span className="text-xs text-gray-500">实时</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+
+        {/* 主要图表区域 - 现代白色风格 */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* 查询趋势图 - 占据更大空间 */}
+          <Card className="lg:col-span-2 bg-white border border-gray-200 shadow-lg card-hover fade-in">
+            <CardHeader className="pb-6">
+              <div className="flex items-center justify-between">
+                <div className="slide-in-left">
+                  <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <span className="gradient-text">
+                      查询趋势分析
+                    </span>
+                  </CardTitle>
+                  <CardDescription className="text-gray-600 mt-2">
+                    过去24小时的查询执行趋势 - 实时监控与智能分析
+                  </CardDescription>
                 </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-
-      {/* 图表区域 */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* 查询趋势图 */}
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>查询趋势</CardTitle>
-            <CardDescription>
-              过去24小时的查询执行趋势
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <ResponsiveContainer width="100%" height={350}>
-              <AreaChart data={queryTrends}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="timestamp"
-                  stroke="#888888"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="#888888"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value) => formatNumber(value)}
-                />
-                <Tooltip />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#8884d8"
-                  fill="#8884d8"
-                  fillOpacity={0.6}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* 系统健康状态 */}
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>系统健康状态</CardTitle>
-            <CardDescription>
-              实时系统资源使用情况
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <PieChart>
-                <Pie
-                  data={systemHealthData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={120}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {systemHealthData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `${value}%`} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              {systemHealthData.map((item) => (
-                <div key={item.name} className="flex items-center">
-                  <div
-                    className="h-3 w-3 rounded-full mr-2"
-                    style={{ backgroundColor: item.color }}
+                <div className="flex items-center space-x-4 scale-in">
+                  <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full pulse-slow"></div>
+                    <span className="text-sm font-medium text-blue-700">查询量</span>
+                  </div>
+                  <div className="text-sm text-gray-500 glass px-3 py-1.5 rounded-lg">
+                    24小时
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <ResponsiveContainer width="100%" height={350}>
+                <AreaChart data={queryTrends} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorQuery" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="timestamp"
+                    stroke="#64748b"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
                   />
-                  <span className="text-sm">{item.name}: {item.value}%</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                  <YAxis
+                    stroke="#64748b"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => formatNumber(value)}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                      color: '#1f2937'
+                    }}
+                    labelStyle={{ color: '#3b82f6' }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    fill="url(#colorQuery)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
-      {/* 性能分析 */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* 查询性能分布 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>查询性能分布</CardTitle>
-            <CardDescription>
-              不同执行时间范围的查询分布
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={performanceData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="label"
-                  stroke="#888888"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="#888888"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip />
-                <Bar dataKey="value" fill="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          {/* 系统健康状态 */}
+          <Card className="bg-white border border-gray-200 shadow-lg card-hover fade-in">
+            <CardHeader className="pb-6">
+              <div className="flex items-center justify-between">
+                <div className="slide-in-left">
+                  <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <span className="bg-gradient-to-r from-green-600 to-green-500 bg-clip-text text-transparent">
+                      系统健康状态
+                    </span>
+                  </CardTitle>
+                  <CardDescription className="text-gray-600 mt-2">
+                    实时系统资源使用情况与性能监控
+                  </CardDescription>
+                </div>
+                <div className="flex items-center space-x-2 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200 scale-in">
+                  <div className="w-3 h-3 bg-green-500 rounded-full pulse-slow"></div>
+                  <span className="text-sm font-semibold text-green-700">系统正常</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* 系统资源列表 */}
+              <div className="space-y-4">
+                {systemHealthData.map((item) => {
+                  const percentage = item.value
+                  const isHigh = percentage > 80
+                  const isMedium = percentage > 60
+                  const barColor = isHigh ? 'bg-red-500' : isMedium ? 'bg-yellow-500' : 'bg-green-500'
+                  const bgColor = isHigh ? 'bg-red-50' : isMedium ? 'bg-yellow-50' : 'bg-green-50'
+                  const borderColor = isHigh ? 'border-red-200' : isMedium ? 'border-yellow-200' : 'border-green-200'
+                  const textColor = isHigh ? 'text-red-900' : isMedium ? 'text-yellow-900' : 'text-green-900'
 
-        {/* 系统警告 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              系统警告
-            </CardTitle>
-            <CardDescription>
-              需要关注的系统状态和建议
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-yellow-50 border border-yellow-200">
-                <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-yellow-800">
-                    查询缓存使用率较低
-                  </p>
-                  <p className="text-xs text-yellow-700">
-                    建议优化查询缓存策略以提高性能
-                  </p>
+                  return (
+                    <div key={item.name} className={`p-4 rounded-xl ${bgColor} border-2 ${borderColor} hover:shadow-md transition-all duration-300`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className={`text-sm font-semibold ${textColor}`}>{item.name}</span>
+                        <span className={`text-lg font-bold ${textColor} bg-white px-3 py-1 rounded-lg shadow-sm`}>{percentage}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                        <div
+                          className={`h-3 rounded-full ${barColor} transition-all duration-500 shadow-sm`}
+                          style={{ width: `${percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* 系统状态总结 */}
+              <div className="mt-6 p-4 bg-blue-50 rounded-xl border-2 border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-blue-500 rounded-lg">
+                      <Activity className="h-5 w-5 text-white" />
+                    </div>
+                    <span className="text-sm font-semibold text-blue-900">系统状态评估</span>
+                  </div>
+                  <span className="text-lg font-bold text-green-600">优秀</span>
                 </div>
               </div>
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-200">
-                <Activity className="h-4 w-4 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-blue-800">
-                    数据量增长趋势
-                  </p>
-                  <p className="text-xs text-blue-700">
-                    数据存储量持续增长，建议考虑数据归档策略
-                  </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 性能分析和最近活动 */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* 查询性能分布 */}
+          <Card className="bg-white border border-gray-200 shadow-lg card-hover fade-in">
+            <CardHeader className="pb-6">
+              <div className="flex items-center justify-between">
+                <div className="slide-in-left">
+                  <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <span className="bg-gradient-to-r from-purple-600 to-purple-500 bg-clip-text text-transparent">
+                      查询性能分布
+                    </span>
+                  </CardTitle>
+                  <CardDescription className="text-gray-600 mt-2">
+                    不同执行时间范围的查询分布统计与性能分析
+                  </CardDescription>
+                </div>
+                <div className="text-sm text-gray-500 glass px-3 py-1.5 rounded-lg scale-in">
+                  实时数据
                 </div>
               </div>
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 border border-green-200">
-                <TrendingUp className="h-4 w-4 text-green-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-green-800">
-                    系统运行稳定
-                  </p>
-                  <p className="text-xs text-green-700">
-                    所有核心服务运行正常，性能指标良好
-                  </p>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={performanceData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="label"
+                    stroke="#64748b"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="#64748b"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                  <Bar
+                    dataKey="value"
+                    fill="#10b981"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* 最近活动 */}
+          <Card className="bg-white border border-gray-200 shadow-lg card-hover fade-in">
+            <CardHeader className="pb-6">
+              <div className="flex items-center justify-between">
+                <div className="slide-in-left">
+                  <CardTitle className="text-xl font-bold text-gray-900">
+                    <span className="bg-gradient-to-r from-indigo-600 to-indigo-500 bg-clip-text text-transparent">
+                      最近活动
+                    </span>
+                  </CardTitle>
+                  <CardDescription className="text-gray-600 mt-2">
+                    系统状态和重要事件监控
+                  </CardDescription>
+                </div>
+                <div className="text-sm text-gray-500 glass px-3 py-1.5 rounded-lg scale-in">
+                  实时更新
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {/* 活动项目 */}
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-green-50 border border-green-100 hover:bg-green-100 transition-all duration-300 hover:shadow-md hover:scale-105 fade-in">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center float">
+                    <TrendingUp className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900">
+                        查询性能优化
+                      </p>
+                      <span className="text-xs text-gray-500">2分钟前</span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">
+                      系统自动优化了查询缓存，性能提升15%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-all duration-300 hover:shadow-md hover:scale-105 fade-in" style={{ animationDelay: '0.1s' }}>
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center float">
+                    <Database className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900">
+                        数据同步完成
+                      </p>
+                      <span className="text-xs text-gray-500">5分钟前</span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">
+                      成功同步了1,234条新记录到数据仓库
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-yellow-50 border border-yellow-100 hover:bg-yellow-100 transition-all duration-300 hover:shadow-md hover:scale-105 fade-in" style={{ animationDelay: '0.2s' }}>
+                  <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center float">
+                    <AlertCircle className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900">
+                        缓存使用率提醒
+                      </p>
+                      <span className="text-xs text-gray-500">10分钟前</span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">
+                      建议优化查询缓存策略以提高性能
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 hover:bg-gray-100 transition-all duration-300 hover:shadow-md hover:scale-105 fade-in" style={{ animationDelay: '0.3s' }}>
+                  <div className="w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center float">
+                    <Activity className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900">
+                        系统健康检查
+                      </p>
+                      <span className="text-xs text-gray-500">15分钟前</span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">
+                      所有核心服务运行正常，性能指标良好
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )

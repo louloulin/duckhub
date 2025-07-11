@@ -1,0 +1,80 @@
+[package]
+name = "duckhub-web-api"
+version = "0.1.0"
+edition = "2021"
+description = "DuckHub Web API服务 - 金融数据平台REST API接口"
+
+[dependencies]
+# 核心依赖
+duckhub-common = { path = "../../core/common" }
+duckhub-database = { path = "../../core/database" }
+duckhub-cache = { path = "../../core/cache" }
+duckhub-security = { path = "../../core/security" }
+duckhub-data-ingestion = { path = "../data-ingestion" }
+duckhub-query-analytics = { path = "../query-analytics" }
+duckhub-ai-agent = { path = "../ai-agent" }
+duckhub-monitoring = { path = "../monitoring" }
+
+# Web框架
+actix-web = "4.4"
+actix-cors = "0.6"
+actix-files = "0.6"
+tokio = { version = "1.0", features = ["full"] }
+
+# 序列化和反序列化
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# 时间处理
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# 日志和追踪
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-actix-web = "0.7"
+
+# 监控指标
+prometheus = "0.13"
+
+# 错误处理
+anyhow = "1.0"
+thiserror = "1.0"
+
+# 配置管理
+config = "0.13"
+
+# JWT认证
+jsonwebtoken = "8.3"
+
+# 验证
+validator = { version = "0.16", features = ["derive"] }
+
+# 异步运行时
+futures = "0.3"
+
+# HTTP客户端
+reqwest = { version = "0.11", features = ["json"] }
+
+# CPU核心数检测
+num_cpus = "1.0"
+
+# 正则表达式
+regex = "1.0"
+
+# 随机数生成
+rand = "0.8"
+
+# MD5哈希
+md5 = "0.7"
+
+[dev-dependencies]
+tokio-test = "0.4"
+futures = "0.3"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "api_benchmarks"
+harness = false

@@ -3,12 +3,33 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Bot, Send, Lightbulb, Zap, MessageSquare } from 'lucide-react'
 
+interface BaseMessage {
+  id: string
+  content: string
+  timestamp: string
+}
+
+interface UserMessage extends BaseMessage {
+  type: 'user'
+}
+
+interface AssistantMessage extends BaseMessage {
+  type: 'assistant'
+  metadata?: {
+    sql_query?: string
+    execution_time?: number
+    result_count?: number
+  }
+}
+
+type Message = UserMessage | AssistantMessage
+
 export default function AIAgent() {
   const [message, setMessage] = useState('')
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      type: 'assistant' as const,
+      type: 'assistant',
       content: '您好！我是DuckHub AI助手，可以帮助您进行自然语言查询、数据分析和获取智能推荐。有什么我可以帮助您的吗？',
       timestamp: new Date().toISOString(),
     }
@@ -18,9 +39,9 @@ export default function AIAgent() {
     if (!message.trim()) return
 
     // 添加用户消息
-    const userMessage = {
+    const userMessage: UserMessage = {
       id: Date.now().toString(),
-      type: 'user' as const,
+      type: 'user',
       content: message,
       timestamp: new Date().toISOString(),
     }
@@ -121,7 +142,7 @@ export default function AIAgent() {
                       }`}
                     >
                       <p className="text-sm">{msg.content}</p>
-                      {msg.metadata?.sql_query && (
+                      {msg.type === 'assistant' && msg.metadata?.sql_query && (
                         <div className="mt-2 p-2 bg-black/10 rounded text-xs font-mono">
                           {msg.metadata.sql_query}
                         </div>
