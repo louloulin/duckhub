@@ -68,51 +68,30 @@ export default function DatabasePanel() {
     description: '',
   })
 
-  // 模拟数据加载
+  // 加载数据库列表
   useEffect(() => {
     const loadDatabases = async () => {
       setLoading(true)
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const mockDatabases: DuckLakeDatabase[] = [
-        {
-          id: '1',
-          name: 'financial_data',
-          path: '/data/ducklake/financial_data.db',
-          status: 'connected',
-          size: '2.3 GB',
-          tables: 15,
-          lastAccessed: '2分钟前',
-          connections: 3,
-          description: '金融交易数据主库',
-        },
-        {
-          id: '2',
-          name: 'analytics_warehouse',
-          path: '/data/ducklake/analytics.db',
-          status: 'connected',
-          size: '1.8 GB',
-          tables: 8,
-          lastAccessed: '5分钟前',
-          connections: 1,
-          description: '分析数据仓库',
-        },
-        {
-          id: '3',
-          name: 'backup_archive',
-          path: '/backup/ducklake/archive.db',
-          status: 'disconnected',
-          size: '5.1 GB',
-          tables: 23,
-          lastAccessed: '2小时前',
-          connections: 0,
-          description: '历史数据备份库',
-        },
-      ]
-      
-      setDatabases(mockDatabases)
-      setLoading(false)
+      try {
+        const response = await fetch('/api/v1/ducklake/databases', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setDatabases(data.data || [])
+        } else {
+          console.error('获取数据库列表失败')
+          setDatabases([])
+        }
+      } catch (error) {
+        console.error('加载数据库列表时出错:', error)
+        setDatabases([])
+      } finally {
+        setLoading(false)
+      }
     }
 
     loadDatabases()

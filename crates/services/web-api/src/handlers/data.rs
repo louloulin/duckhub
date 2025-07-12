@@ -7,6 +7,8 @@ use tracing::{info, error, instrument};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use std::sync::Arc;
+use duckhub_database::{DuckDBEngine, QueryResult};
 use crate::{AppState, success_response, error_response};
 
 /// 格式化字节大小为人类可读格式
@@ -161,53 +163,14 @@ pub struct TableDataResponse {
 pub async fn get_tables(app_state: web::Data<AppState>) -> ActixResult<HttpResponse> {
     info!("获取数据库表列表");
     
-    // 模拟数据 - 在实际实现中应该从DuckDB获取
-    let tables = vec![
-        TableInfo {
-            name: "transactions".to_string(),
-            rows: 1_250_000,
-            size: format_size(2_400_000_000), // 2.4 GB
-            schema_version: 5,
-            last_modified: "2024-01-11 14:30:25".to_string(),
-            description: Some("交易记录表".to_string()),
-            size_bytes: 2_400_000_000,
-            column_count: 8,
-            table_type: "TABLE".to_string(),
-        },
-        TableInfo {
-            name: "users".to_string(),
-            rows: 45_000,
-            size: format_size(125_000_000), // 125 MB
-            schema_version: 3,
-            last_modified: "2024-01-10 09:15:10".to_string(),
-            description: Some("用户信息表".to_string()),
-            size_bytes: 125_000_000,
-            column_count: 12,
-            table_type: "TABLE".to_string(),
-        },
-        TableInfo {
-            name: "products".to_string(),
-            rows: 8_500,
-            size: format_size(47_000_000), // 47 MB
-            schema_version: 2,
-            last_modified: "2024-01-09 16:20:30".to_string(),
-            description: Some("产品信息表".to_string()),
-            size_bytes: 47_000_000,
-            column_count: 10,
-            table_type: "TABLE".to_string(),
-        },
-        TableInfo {
-            name: "orders".to_string(),
-            rows: 890_000,
-            size: format_size(1_900_000_000), // 1.9 GB
-            schema_version: 4,
-            last_modified: "2024-01-11 12:45:15".to_string(),
-            description: Some("订单记录表".to_string()),
-            size_bytes: 1_900_000_000,
-            column_count: 15,
-            table_type: "TABLE".to_string(),
-        },
-    ];
+    // 从DuckDB获取真实的表列表
+    let tables = match get_real_table_list(&app_state.engine).await {
+        Ok(real_tables) => real_tables,
+        Err(e) => {
+            error!("获取表列表失败: {}", e);
+            vec![]
+        }
+    };
     
     info!("成功获取 {} 个表的信息", tables.len());
     Ok(success_response(tables))
@@ -731,4 +694,92 @@ pub async fn get_table_schema_evolution(
     };
 
     get_schema_evolution(_app_state, web::Query(query)).await
+}
+
+/// 获取真实的表列表
+async fn get_real_table_list(engine: &Arc<DuckDBEngine>) -> Result<Vec<TableInfo>, Box<dyn std::error::Error>> {
+    // 查询系统表获取真实的表信息
+    let sql = r#"
+        SELECT
+            table_name,
+            estimated_size,
+            table_type,
+            table_comment
+        FROM information_schema.tables
+        WHERE table_schema = 'main'
+        ORDER BY table_name
+    "#;
+
+    match engine.execute(sql).await {
+        Ok(result) => {
+            let mut tables = Vec::new();
+            for row in result.rows {
+                if let Some(table_name) = row.get("table_name") {
+                    let table_name_str = table_name.to_string();
+
+                    // 获取表的行数
+                    let row_count = get_table_row_count(engine, &table_name_str).await.unwrap_or(0);
+
+                    // 获取表的列数
+                    let column_count = get_table_column_count(engine, &table_name_str).await.unwrap_or(0);
+
+                    let size_bytes = row.get("estimated_size").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let table_type = row.get("table_type").map(|v| v.to_string()).unwrap_or_else(|| "TABLE".to_string());
+                    let description = row.get("table_comment").map(|v| v.to_string());
+
+                    tables.push(TableInfo {
+                        name: table_name_str,
+                        rows: row_count,
+                        size: format_size(size_bytes),
+                        schema_version: 1, // 默认版本
+                        last_modified: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                        description,
+                        size_bytes,
+                        column_count,
+                        table_type,
+                    });
+                }
+            }
+            Ok(tables)
+        },
+        Err(_) => {
+            // 如果查询失败，返回空列表
+            Ok(vec![])
+        }
+    }
+}
+
+/// 获取表的行数
+async fn get_table_row_count(engine: &Arc<DuckDBEngine>, table_name: &str) -> Result<u64, Box<dyn std::error::Error>> {
+    let sql = format!("SELECT COUNT(*) FROM {}", table_name);
+    match engine.execute(&sql).await {
+        Ok(result) => {
+            if let Some(row) = result.rows.first() {
+                if let Some(count) = row.get("count") {
+                    return Ok(count.as_u64().unwrap_or(0));
+                }
+            }
+            Ok(0)
+        },
+        Err(_) => Ok(0),
+    }
+}
+
+/// 获取表的列数
+async fn get_table_column_count(engine: &Arc<DuckDBEngine>, table_name: &str) -> Result<u32, Box<dyn std::error::Error>> {
+    let sql = format!(
+        "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = '{}'",
+        table_name
+    );
+    match engine.execute(&sql).await {
+        Ok(result) => {
+            if let Some(row) = result.rows.first() {
+                if let Some(count) = row.get("count") {
+                    return Ok(count.as_u64().unwrap_or(0) as u32);
+                }
+            }
+            Ok(0)
+        },
+        Err(_) => Ok(0),
+    }
 }

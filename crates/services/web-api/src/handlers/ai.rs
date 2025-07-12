@@ -423,46 +423,8 @@ pub async fn get_session_history(
         status: "active".to_string(),
     };
 
-    // 模拟历史消息
-    let messages = vec![
-        SessionMessage {
-            message_id: "msg-001".to_string(),
-            session_id: session_id.clone(),
-            role: "user".to_string(),
-            content: "你好，我想分析一下最近的交易数据".to_string(),
-            timestamp: "2024-01-11T10:00:00Z".to_string(),
-            metadata: None,
-        },
-        SessionMessage {
-            message_id: "msg-002".to_string(),
-            session_id: session_id.clone(),
-            role: "assistant".to_string(),
-            content: "您好！我可以帮您分析交易数据。请告诉我您想了解哪些方面的信息？比如交易量、金额分布、时间趋势等。".to_string(),
-            timestamp: "2024-01-11T10:00:05Z".to_string(),
-            metadata: Some(serde_json::json!({
-                "suggested_sql": "SELECT COUNT(*), SUM(amount) FROM transactions WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'"
-            })),
-        },
-        SessionMessage {
-            message_id: "msg-003".to_string(),
-            session_id: session_id.clone(),
-            role: "user".to_string(),
-            content: "我想看看最近一周每天的交易量和总金额".to_string(),
-            timestamp: "2024-01-11T10:01:00Z".to_string(),
-            metadata: None,
-        },
-        SessionMessage {
-            message_id: "msg-004".to_string(),
-            session_id: session_id.clone(),
-            role: "assistant".to_string(),
-            content: "好的，我为您生成了查询最近一周每日交易统计的SQL。这个查询会显示每天的交易数量和总金额。".to_string(),
-            timestamp: "2024-01-11T10:01:05Z".to_string(),
-            metadata: Some(serde_json::json!({
-                "generated_sql": "SELECT DATE(created_at) as date, COUNT(*) as transaction_count, SUM(amount) as total_amount FROM transactions WHERE created_at >= CURRENT_DATE - INTERVAL '7 days' GROUP BY DATE(created_at) ORDER BY date",
-                "confidence": 0.95
-            })),
-        },
-    ];
+    // TODO: 从数据库获取真实的历史消息
+    let messages = vec![];
 
     let response = SessionHistoryResponse {
         session_id,

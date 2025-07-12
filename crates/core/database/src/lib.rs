@@ -19,7 +19,7 @@ pub mod metrics;
 pub mod extensions;
 
 // Re-export main components
-pub use duckdb::{DuckDBEngine, DuckDBConnection};
+pub use duckdb::{DuckDBEngine, DuckDBConnection, QueryResult};
 pub use pool::{ConnectionPool, PoolManager};
 pub use query::{QueryExecutor, QueryOptimizer, QueryCache};
 pub use lake::{DataLakeManager, ObjectStorageProvider};

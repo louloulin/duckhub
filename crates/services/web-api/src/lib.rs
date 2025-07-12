@@ -271,6 +271,7 @@ fn configure_routes(cfg: &mut web::ServiceConfig) {
                 .route("/databases/{name}/snapshots", web::get().to(list_snapshots))
                 .route("/databases/{name}/time-travel", web::post().to(time_travel_query))
                 .route("/databases/{name}/schema", web::get().to(get_schema))
+                .route("/versions", web::get().to(list_versions))
                 .route("/metrics", web::get().to(get_ducklake_metrics))
                 .route("/metrics/performance", web::get().to(get_ducklake_performance_history))
         );

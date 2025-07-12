@@ -38,63 +38,27 @@ export default function VersionControl() {
   useEffect(() => {
     const loadVersions = async () => {
       setLoading(true)
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const mockVersions: VersionChange[] = [
-        {
-          id: '1',
-          version: 127,
-          timestamp: '2024-01-11 14:30:25',
-          author: 'system',
-          operation: 'update',
-          table: 'transactions',
-          description: '批量更新交易记录状态',
-          changes: { added: 0, modified: 1250, deleted: 0 },
-        },
-        {
-          id: '2',
-          version: 126,
-          timestamp: '2024-01-11 12:15:10',
-          author: 'admin',
-          operation: 'create',
-          table: 'daily_summary',
-          description: '创建日汇总数据',
-          changes: { added: 890, modified: 0, deleted: 0 },
-        },
-        {
-          id: '3',
-          version: 125,
-          timestamp: '2024-01-11 09:00:00',
-          author: 'data_pipeline',
-          operation: 'schema_change',
-          table: 'users',
-          description: '添加新字段: last_login_ip',
-          changes: { added: 0, modified: 0, deleted: 0 },
-        },
-        {
-          id: '4',
-          version: 124,
-          timestamp: '2024-01-10 23:59:59',
-          author: 'system',
-          operation: 'delete',
-          table: 'temp_data',
-          description: '清理临时数据',
-          changes: { added: 0, modified: 0, deleted: 2100 },
-        },
-        {
-          id: '5',
-          version: 123,
-          timestamp: '2024-01-10 18:30:00',
-          author: 'analyst',
-          operation: 'update',
-          table: 'market_data',
-          description: '更新市场数据',
-          changes: { added: 456, modified: 123, deleted: 0 },
-        },
-      ]
-      
-      setVersions(mockVersions)
-      setLoading(false)
+      try {
+        const response = await fetch('/api/v1/ducklake/versions', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setVersions(data.data || [])
+        } else {
+          console.error('获取版本列表失败')
+          setVersions([])
+        }
+      } catch (error) {
+        console.error('加载版本列表时出错:', error)
+        // 不再使用fallback数据，直接设置为空数组
+        setVersions([])
+      } finally {
+        setLoading(false)
+      }
     }
 
     loadVersions()

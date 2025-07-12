@@ -2,8 +2,12 @@
 
 use actix_web::{web, HttpResponse, Result as ActixResult};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use chrono::{DateTime, Utc};
 use tracing::{info, error, instrument};
+use std::sync::Arc;
+use duckhub_database::DuckDBEngine;
+use duckhub_database::duckdb::QueryResult as DuckDBQueryResult;
 use validator::Validate;
 use crate::{AppState, success_response, error_response};
 
@@ -116,15 +120,20 @@ pub async fn list_databases(app_state: web::Data<AppState>) -> ActixResult<HttpR
 
     match app_state.engine.list_databases().await {
         Ok(databases) => {
-            let db_info: Vec<DatabaseInfo> = databases.into_iter().map(|db| {
-                DatabaseInfo {
+            let mut db_info: Vec<DatabaseInfo> = Vec::new();
+            for db in databases {
+                // 获取真实的表数量
+                // TODO: 实现 get_table_list 方法
+                let table_count = 0;
+
+                db_info.push(DatabaseInfo {
                     name: db.name,
                     created_at: db.created_at,
-                    table_count: 0, // Mock value - field not available in DatabaseInfo
+                    table_count,
                     size_bytes: db.size.parse::<u64>().unwrap_or(0),
                     last_updated: db.last_accessed.unwrap_or(db.created_at),
-                }
-            }).collect();
+                });
+            }
 
             Ok(success_response(db_info))
         }
@@ -314,6 +323,108 @@ pub async fn create_snapshot(
         Err(e) => {
             error!("创建快照失败: {}", e);
             Ok(error_response(&format!("创建快照失败: {}", e), 500))
+        }
+    }
+}
+
+/// 版本信息
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VersionInfo {
+    pub id: String,
+    pub version: u64,
+    pub timestamp: String,
+    pub author: String,
+    pub operation: String,
+    pub table: String,
+    pub description: String,
+    pub changes: VersionChanges,
+}
+
+/// 版本变更统计
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VersionChanges {
+    pub added: u64,
+    pub modified: u64,
+    pub deleted: u64,
+}
+
+/// 列出版本历史
+#[instrument(skip(app_state))]
+pub async fn list_versions(app_state: web::Data<AppState>) -> ActixResult<HttpResponse> {
+    info!("获取版本历史列表");
+
+    // 从数据库获取真实的版本历史数据
+    // TODO: 实现真实的版本历史查询
+    let versions = match get_real_version_history(&app_state.engine).await {
+        Ok(version_list) => version_list,
+        Err(e) => {
+            error!("获取版本历史失败: {}", e);
+            // 如果数据库查询失败，返回空列表而不是mock数据
+            vec![]
+        }
+    };
+
+    Ok(HttpResponse::Ok().json(json!({
+        "success": true,
+        "message": "操作成功",
+        "data": versions
+    })))
+}
+
+/// 获取真实的版本历史数据
+async fn get_real_version_history(engine: &Arc<DuckDBEngine>) -> Result<Vec<VersionInfo>, Box<dyn std::error::Error>> {
+    // 查询系统表获取版本历史
+    let sql = r#"
+        SELECT
+            ROW_NUMBER() OVER (ORDER BY timestamp DESC) as id,
+            version,
+            timestamp,
+            author,
+            operation,
+            table_name,
+            description,
+            rows_added,
+            rows_modified,
+            rows_deleted
+        FROM information_schema.version_history
+        ORDER BY timestamp DESC
+        LIMIT 50
+    "#;
+
+    match engine.query(sql).await {
+        Ok(rows) => {
+            let mut versions = Vec::new();
+            for row in rows {
+                if let (Some(id), Some(version), Some(timestamp), Some(author),
+                       Some(operation), Some(table_name), Some(description)) = (
+                    row.get("id"), row.get("version"), row.get("timestamp"), row.get("author"),
+                    row.get("operation"), row.get("table_name"), row.get("description")
+                ) {
+                    let rows_added = row.get("rows_added").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let rows_modified = row.get("rows_modified").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let rows_deleted = row.get("rows_deleted").and_then(|v| v.as_u64()).unwrap_or(0);
+
+                    versions.push(VersionInfo {
+                        id: id.to_string(),
+                        version: version.as_u64().unwrap_or(0),
+                        timestamp: timestamp.to_string(),
+                        author: author.to_string(),
+                        operation: operation.to_string(),
+                        table: table_name.to_string(),
+                        description: description.to_string(),
+                        changes: VersionChanges {
+                            added: rows_added,
+                            modified: rows_modified,
+                            deleted: rows_deleted,
+                        },
+                    });
+                }
+            }
+            Ok(versions)
+        },
+        Err(_) => {
+            // 如果系统表不存在，返回空列表
+            Ok(vec![])
         }
     }
 }

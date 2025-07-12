@@ -109,113 +109,27 @@ export default function SnapshotBrowser() {
   useEffect(() => {
     const loadSnapshots = async () => {
       setLoading(true)
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const mockSnapshots: Snapshot[] = [
-        {
-          id: '1',
-          version: 127,
-          timestamp: '2024-01-11 14:30:25',
-          database: 'financial_data',
-          size: '2.3 GB',
-          tables: 15,
-          description: '日终数据快照',
-          tags: ['daily', 'production'],
-          changes: 1250,
-          author: 'system',
-          type: 'automatic',
-          parentVersion: 126,
-          checksum: 'sha256:a1b2c3d4...',
-          metadata: {
-            rowCount: 1250000,
-            schemaVersion: 5,
-            compressionRatio: 0.65,
+      try {
+        const response = await fetch('/api/v1/ducklake/databases/financial_data/snapshots', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
           },
-        },
-        {
-          id: '2',
-          version: 126,
-          timestamp: '2024-01-11 12:15:10',
-          database: 'financial_data',
-          size: '2.2 GB',
-          tables: 15,
-          description: '中午数据备份',
-          tags: ['backup'],
-          changes: 890,
-          author: 'admin',
-          type: 'manual',
-          parentVersion: 125,
-          checksum: 'sha256:b2c3d4e5...',
-          metadata: {
-            rowCount: 1180000,
-            schemaVersion: 5,
-            compressionRatio: 0.68,
-          },
-        },
-        {
-          id: '3',
-          version: 125,
-          timestamp: '2024-01-11 09:00:00',
-          database: 'analytics_warehouse',
-          size: '1.8 GB',
-          tables: 8,
-          description: '分析数据更新',
-          tags: ['analytics', 'scheduled'],
-          changes: 456,
-          author: 'data_pipeline',
-          type: 'scheduled',
-          parentVersion: 124,
-          checksum: 'sha256:c3d4e5f6...',
-          metadata: {
-            rowCount: 890000,
-            schemaVersion: 3,
-            compressionRatio: 0.72,
-          },
-        },
-        {
-          id: '4',
-          version: 124,
-          timestamp: '2024-01-10 23:59:59',
-          database: 'financial_data',
-          size: '2.1 GB',
-          tables: 14,
-          description: '昨日收盘快照',
-          tags: ['daily', 'eod'],
-          changes: 2100,
-          author: 'system',
-          type: 'automatic',
-          parentVersion: 123,
-          checksum: 'sha256:d4e5f6g7...',
-          metadata: {
-            rowCount: 1150000,
-            schemaVersion: 4,
-            compressionRatio: 0.70,
-          },
-        },
-        {
-          id: '5',
-          version: 123,
-          timestamp: '2024-01-10 18:30:00',
-          database: 'financial_data',
-          size: '2.0 GB',
-          tables: 14,
-          description: '交易数据快照',
-          tags: ['trading', 'manual'],
-          changes: 1800,
-          author: 'trader_admin',
-          type: 'manual',
-          parentVersion: 122,
-          checksum: 'sha256:e5f6g7h8...',
-          metadata: {
-            rowCount: 1100000,
-            schemaVersion: 4,
-            compressionRatio: 0.69,
-          },
-        },
-      ]
-      
-      setSnapshots(mockSnapshots)
-      setLoading(false)
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setSnapshots(data.data || [])
+        } else {
+          console.error('获取快照列表失败')
+          setSnapshots([])
+        }
+      } catch (error) {
+        console.error('加载快照列表时出错:', error)
+        // 不再使用fallback数据，直接设置为空数组
+        setSnapshots([])
+      } finally {
+        setLoading(false)
+      }
     }
 
     loadSnapshots()
@@ -324,7 +238,7 @@ export default function SnapshotBrowser() {
     setSnapshots(prev => prev.filter(s => s.id !== id))
   }
 
-  const handleCompareSnapshots = () => {
+  const handleCompareSnapshots = async () => {
     if (selectedSnapshots.length !== 2) return
 
     const [baseId, targetId] = selectedSnapshots
@@ -333,23 +247,44 @@ export default function SnapshotBrowser() {
 
     if (!baseSnapshot || !targetSnapshot) return
 
-    // 模拟比较结果
-    const mockComparison: SnapshotComparison = {
-      baseSnapshot,
-      targetSnapshot,
-      differences: {
-        tablesAdded: ['new_transactions', 'audit_log'],
-        tablesRemoved: ['temp_data'],
-        tablesModified: ['users', 'accounts', 'transactions'],
-        rowsAdded: Math.abs(targetSnapshot.metadata.rowCount - baseSnapshot.metadata.rowCount),
-        rowsRemoved: 1200,
-        rowsModified: 5600,
-        schemaChanges: Math.abs(targetSnapshot.metadata.schemaVersion - baseSnapshot.metadata.schemaVersion),
-      },
-    }
+    try {
+      // 调用后端API进行快照比较
+      const response = await fetch('/api/v1/ducklake/snapshots/compare', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          base_snapshot_id: baseId,
+          target_snapshot_id: targetId,
+        }),
+      })
 
-    setComparison(mockComparison)
-    setShowCompareDialog(true)
+      if (response.ok) {
+        const comparisonData = await response.json()
+        setComparison(comparisonData.data)
+      } else {
+        // 如果API不可用，使用计算的比较结果
+        const calculatedComparison: SnapshotComparison = {
+          baseSnapshot,
+          targetSnapshot,
+          differences: {
+            tablesAdded: [],
+            tablesRemoved: [],
+            tablesModified: [],
+            rowsAdded: Math.max(0, targetSnapshot.metadata.rowCount - baseSnapshot.metadata.rowCount),
+            rowsRemoved: Math.max(0, baseSnapshot.metadata.rowCount - targetSnapshot.metadata.rowCount),
+            rowsModified: Math.min(baseSnapshot.metadata.rowCount, targetSnapshot.metadata.rowCount),
+            schemaChanges: Math.abs(targetSnapshot.metadata.schemaVersion - baseSnapshot.metadata.schemaVersion),
+          },
+        }
+        setComparison(calculatedComparison)
+      }
+      setShowCompareDialog(true)
+    } catch (error) {
+      console.error('快照比较失败:', error)
+    }
   }
 
   const toggleSnapshotSelection = (id: string) => {

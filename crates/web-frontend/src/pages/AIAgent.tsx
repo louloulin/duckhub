@@ -60,15 +60,7 @@ type Message = UserMessage | AssistantMessage
 export default function AIAgent() {
   const [message, setMessage] = useState('')
   const [activeTab, setActiveTab] = useState('chat')
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      type: 'assistant',
-      content: '您好！我是DuckHub AI助手，专门为DuckLake数据湖管理优化。我可以帮助您：\n\n🕐 **时间旅行查询** - 智能推荐历史版本和时间点\n🔄 **Schema演进建议** - 安全的数据库结构变更\n📸 **快照管理优化** - 自动化快照策略建议\n⚡ **性能优化** - 查询和存储性能分析\n\n请告诉我您需要什么帮助！',
-      timestamp: new Date().toISOString(),
-      category: 'general',
-    }
-  ])
+  const [messages, setMessages] = useState<Message[]>([])
 
   const handleSendMessage = () => {
     if (!message.trim()) return
