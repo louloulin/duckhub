@@ -99,69 +99,9 @@ export default function DuckLakeMetrics() {
           setChartData(apiChartData)
         } else {
           console.error('获取DuckLake指标失败')
-          // 使用fallback数据
-          const fallbackMetrics: MetricCard[] = [
-        {
-          title: '时间旅行查询',
-          value: '1,234',
-          change: '+12.5%',
-          trend: 'up',
-          icon: <Clock className="h-6 w-6" />,
-          color: 'text-blue-600',
-        },
-        {
-          title: '活跃事务',
-          value: '45',
-          change: '+5.2%',
-          trend: 'up',
-          icon: <Zap className="h-6 w-6" />,
-          color: 'text-green-600',
-        },
-        {
-          title: '快照创建',
-          value: '127',
-          change: '+8.1%',
-          trend: 'up',
-          icon: <Layers className="h-6 w-6" />,
-          color: 'text-purple-600',
-        },
-        {
-          title: 'Schema演进',
-          value: '23',
-          change: '-2.3%',
-          trend: 'down',
-          icon: <GitBranch className="h-6 w-6" />,
-          color: 'text-orange-600',
-        },
-        {
-          title: '存储使用',
-          value: '8.7 GB',
-          change: '+15.8%',
-          trend: 'up',
-          icon: <HardDrive className="h-6 w-6" />,
-          color: 'text-red-600',
-        },
-        {
-          title: '并发连接',
-          value: '18',
-          change: '+3.4%',
-          trend: 'up',
-          icon: <Users className="h-6 w-6" />,
-          color: 'text-indigo-600',
-        },
-      ]
-
-      const fallbackChartData: ChartData[] = [
-        { time: '00:00', queries: 45, snapshots: 2, transactions: 12 },
-        { time: '04:00', queries: 23, snapshots: 1, transactions: 8 },
-        { time: '08:00', queries: 89, snapshots: 3, transactions: 25 },
-        { time: '12:00', queries: 156, snapshots: 5, transactions: 42 },
-        { time: '16:00', queries: 234, snapshots: 4, transactions: 38 },
-        { time: '20:00', queries: 178, snapshots: 3, transactions: 29 },
-      ]
-
-          setMetrics(fallbackMetrics)
-          setChartData(fallbackChartData)
+          // 显示错误状态，不使用fallback数据
+          setMetrics([])
+          setChartData([])
         }
       } catch (error) {
         console.error('加载DuckLake指标时出错:', error)

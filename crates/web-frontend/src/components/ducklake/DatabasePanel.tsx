@@ -78,42 +78,8 @@ export default function DatabasePanel() {
         setDatabases(response.data.data || [])
       } catch (error) {
         console.error('加载数据库列表时出错:', error)
-        // 如果API调用失败，显示模拟数据
-        setDatabases([
-          {
-            id: '1',
-            name: 'financial_main',
-            path: '/data/ducklake/financial_main.db',
-            status: 'connected',
-            size: '2.3 GB',
-            tables: 15,
-            lastAccessed: '5分钟前',
-            connections: 3,
-            description: '主要金融数据库'
-          },
-          {
-            id: '2',
-            name: 'analytics_cache',
-            path: '/data/ducklake/analytics_cache.db',
-            status: 'connected',
-            size: '856 MB',
-            tables: 8,
-            lastAccessed: '1小时前',
-            connections: 1,
-            description: '分析缓存数据库'
-          },
-          {
-            id: '3',
-            name: 'historical_data',
-            path: '/data/ducklake/historical_data.db',
-            status: 'disconnected',
-            size: '12.7 GB',
-            tables: 42,
-            lastAccessed: '昨天',
-            connections: 0,
-            description: '历史数据存档'
-          }
-        ])
+        // 显示错误状态，不使用mock数据
+        setDatabases([])
       } finally {
         setLoading(false)
       }

@@ -54,28 +54,28 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('general')
   const [duckLakeConfig, setDuckLakeConfig] = useState<DuckLakeConfig>({
     snapshotRetention: {
-      enabled: true,
-      retentionDays: 30,
-      maxSnapshots: 100,
-      autoCleanup: true,
+      enabled: false,
+      retentionDays: 0,
+      maxSnapshots: 0,
+      autoCleanup: false,
     },
     performance: {
-      memoryLimit: '2GB',
-      threadCount: 4,
-      cacheSize: '512MB',
-      queryTimeout: 30,
+      memoryLimit: '0MB',
+      threadCount: 0,
+      cacheSize: '0MB',
+      queryTimeout: 0,
     },
     security: {
-      encryptionEnabled: true,
-      accessLogging: true,
+      encryptionEnabled: false,
+      accessLogging: false,
       auditTrail: false,
-      backupEncryption: true,
+      backupEncryption: false,
     },
     automation: {
-      autoSnapshot: true,
-      snapshotSchedule: 'daily',
-      performanceMonitoring: true,
-      alertThreshold: 80,
+      autoSnapshot: false,
+      snapshotSchedule: '',
+      performanceMonitoring: false,
+      alertThreshold: 0,
     },
   })
   const [isLoading, setIsLoading] = useState(true)

@@ -132,86 +132,61 @@ export default function DataExplorer() {
     fetchTables()
   }, [])
 
-  const tableSchema: SchemaColumn[] = selectedTable ? [
-    { column: 'id', type: 'BIGINT', nullable: false, key: 'PRIMARY', comment: '主键ID' },
-    { column: 'user_id', type: 'BIGINT', nullable: false, key: 'FOREIGN', comment: '用户ID' },
-    { column: 'amount', type: 'DECIMAL(10,2)', nullable: false, key: '', comment: '交易金额' },
-    { column: 'status', type: 'VARCHAR(50)', nullable: false, key: '', default_value: 'pending', comment: '交易状态' },
-    { column: 'created_at', type: 'TIMESTAMP', nullable: false, key: '', default_value: 'CURRENT_TIMESTAMP', comment: '创建时间' },
-    { column: 'updated_at', type: 'TIMESTAMP', nullable: true, key: '', comment: '更新时间' },
-  ] : []
+  // 表结构数据状态
+  const [tableSchema, setTableSchema] = useState<SchemaColumn[]>([])
+  const [schemaLoading, setSchemaLoading] = useState(false)
 
-  // Schema演进历史状态
-  const [schemaVersions, setSchemaVersions] = useState<SchemaVersion[]>([
-    {
-      version: 5,
-      timestamp: '2024-01-11 14:30:25',
-      author: 'admin',
-      description: '添加交易状态字段',
-      compatibility: 'backward',
-      changes: [
-        {
-          type: 'add_column',
-          table: 'transactions',
-          column: 'status',
-          new_definition: 'VARCHAR(50) NOT NULL DEFAULT "pending"',
-          description: '添加交易状态字段，支持pending/completed/failed状态',
-          impact: 'low'
-        }
-      ]
-    },
-    {
-      version: 4,
-      timestamp: '2024-01-10 16:20:15',
-      author: 'developer',
-      description: '修改金额字段精度',
-      compatibility: 'breaking',
-      changes: [
-        {
-          type: 'modify_column',
-          table: 'transactions',
-          column: 'amount',
-          old_definition: 'DECIMAL(8,2)',
-          new_definition: 'DECIMAL(10,2)',
-          description: '增加金额字段精度以支持更大金额',
-          impact: 'medium'
-        }
-      ]
-    },
-    {
-      version: 3,
-      timestamp: '2024-01-09 10:15:30',
-      author: 'dba',
-      description: '添加索引优化查询性能',
-      compatibility: 'full',
-      changes: [
-        {
-          type: 'add_index',
-          table: 'transactions',
-          column: 'user_id',
-          new_definition: 'INDEX idx_user_id (user_id)',
-          description: '为user_id字段添加索引',
-          impact: 'low'
-        }
-      ]
-    },
-  ])
-
-  // 加载Schema演进历史
+  // 获取表结构
   useEffect(() => {
-    const loadSchemaEvolution = async () => {
-      if (selectedTable) {
-        try {
-          const response = await dataExplorerAPI.getSchemaEvolution(selectedTable)
-          setSchemaVersions(response.data.data || [])
-        } catch (error) {
-          console.error('加载Schema演进历史失败:', error)
-          // 保持默认的模拟数据
+    if (!selectedTable) {
+      setTableSchema([])
+      return
+    }
+
+    const fetchTableSchema = async () => {
+      try {
+        setSchemaLoading(true)
+        const response = await dataExplorerAPI.getTableSchema(selectedTable)
+        if (response.data.success) {
+          setTableSchema(response.data.data)
+        } else {
+          setTableSchema([])
         }
+      } catch (error) {
+        console.error('获取表结构失败:', error)
+        setTableSchema([])
+      } finally {
+        setSchemaLoading(false)
       }
     }
 
-    loadSchemaEvolution()
+    fetchTableSchema()
+  }, [selectedTable])
+
+  // Schema演进历史状态
+  const [schemaVersions, setSchemaVersions] = useState<SchemaVersion[]>([])
+  const [schemaVersionsLoading, setSchemaVersionsLoading] = useState(false)
+
+  // 获取Schema演进历史
+  useEffect(() => {
+    const fetchSchemaVersions = async () => {
+      try {
+        setSchemaVersionsLoading(true)
+        const response = await dataExplorerAPI.getSchemaEvolution({ table: selectedTable })
+        if (response.data.success) {
+          setSchemaVersions(response.data.data)
+        } else {
+          setSchemaVersions([])
+        }
+      } catch (error) {
+        console.error('获取Schema演进历史失败:', error)
+        setSchemaVersions([])
+      } finally {
+        setSchemaVersionsLoading(false)
+      }
+    }
+
+    fetchSchemaVersions()
   }, [selectedTable])
 
   // 辅助函数
@@ -837,15 +812,17 @@ export default function DataExplorer() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-blue-50 rounded-lg">
                     <div className="text-sm text-blue-600">总行数</div>
-                    <div className="text-2xl font-bold text-blue-900">1,250,000</div>
+                    <div className="text-2xl font-bold text-blue-900">
+                      {selectedTable ? tables.find(t => t.name === selectedTable)?.rows?.toLocaleString() || '0' : '0'}
+                    </div>
                   </div>
                   <div className="p-3 bg-green-50 rounded-lg">
                     <div className="text-sm text-green-600">数据完整性</div>
-                    <div className="text-2xl font-bold text-green-900">98.5%</div>
+                    <div className="text-2xl font-bold text-green-900">-</div>
                   </div>
                   <div className="p-3 bg-yellow-50 rounded-lg">
                     <div className="text-sm text-yellow-600">重复记录</div>
-                    <div className="text-2xl font-bold text-yellow-900">0.2%</div>
+                    <div className="text-2xl font-bold text-yellow-900">-</div>
                   </div>
                   <div className="p-3 bg-purple-50 rounded-lg">
                     <div className="text-sm text-purple-600">最后更新</div>

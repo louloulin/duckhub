@@ -22,12 +22,17 @@ export default function DuckLakeManager() {
   const [activeTab, setActiveTab] = useState('databases')
   const [refreshing, setRefreshing] = useState(false)
 
-  // 模拟数据刷新
+  // 真实数据刷新
   const handleRefresh = async () => {
     setRefreshing(true)
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setRefreshing(false)
+    try {
+      // 触发子组件刷新数据
+      window.location.reload()
+    } catch (error) {
+      console.error('刷新数据失败:', error)
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   return (
@@ -87,7 +92,7 @@ export default function DuckLakeManager() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">总快照数</p>
-                <p className="text-2xl font-bold text-gray-900">127</p>
+                <p className="text-2xl font-bold text-gray-900">-</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <Layers className="h-6 w-6 text-blue-600" />
@@ -95,7 +100,7 @@ export default function DuckLakeManager() {
             </div>
             <div className="mt-4 flex items-center text-sm">
               <Clock className="h-4 w-4 text-blue-500 mr-1" />
-              <span className="text-blue-600">最新: 2分钟前</span>
+              <span className="text-blue-600">最新: -</span>
             </div>
           </CardContent>
         </Card>

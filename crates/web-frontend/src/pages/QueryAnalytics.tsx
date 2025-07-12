@@ -99,27 +99,8 @@ export default function QueryAnalytics() {
         setQueryHistory(response.data.data || [])
       } catch (error) {
         console.error('加载查询历史失败:', error)
-        // 如果API调用失败，使用模拟数据
-        setQueryHistory([
-          {
-            query_id: 'query-1',
-            sql: 'SELECT * FROM transactions WHERE amount > 1000',
-            executed_at: '2024-01-11T10:00:00Z',
-            execution_time_ms: 150,
-            row_count: 1250,
-            optimized: true,
-            cache_hit: false
-          },
-          {
-            query_id: 'query-2',
-            sql: 'SELECT COUNT(*) FROM users',
-            executed_at: '2024-01-11T09:30:00Z',
-            execution_time_ms: 50,
-            row_count: 1,
-            optimized: false,
-            cache_hit: true
-          }
-        ])
+        // 显示错误状态，不使用mock数据
+        setQueryHistory([])
       } finally {
         setIsLoadingHistory(false)
       }
@@ -160,33 +141,8 @@ export default function QueryAnalytics() {
       setLoading(false)
     } catch (error) {
       console.error('查询执行失败:', error)
-      // 如果API调用失败，显示模拟数据
-      const fallbackResult: QueryResult = {
-        query_id: 'q_' + Date.now(),
-        sql: query,
-        executed_at: new Date().toISOString(),
-        execution_time_ms: useTimeTravel ? 280 : 150,
-        row_count: useTimeTravel ? 1180 : 1250,
-        optimized: true,
-        cache_hit: false,
-        data: useTimeTravel ? [
-          { id: 1, name: '历史数据1', value: 95, status: 'completed' },
-          { id: 2, name: '历史数据2', value: 180, status: 'pending' },
-          { id: 3, name: '历史数据3', value: 275, status: 'completed' },
-        ] : [
-          { id: 1, name: '当前数据1', value: 100, status: 'completed' },
-          { id: 2, name: '当前数据2', value: 200, status: 'completed' },
-          { id: 3, name: '当前数据3', value: 300, status: 'active' },
-        ],
-        time_travel: useTimeTravel ? {
-          target: timeTravelTarget,
-          snapshot_version: timeTravelTarget.type === 'version' ? timeTravelTarget.version : 126,
-          query_timestamp: timeTravelTarget.type === 'timestamp' ? timeTravelTarget.timestamp : new Date().toISOString(),
-        } : undefined,
-      }
-
-      setResults(fallbackResult)
-      setQueryHistory(prev => [fallbackResult, ...prev.slice(0, 9)])
+      // 显示错误状态，不使用mock数据
+      setResults(null)
       setLoading(false)
     }
   }
@@ -206,7 +162,7 @@ export default function QueryAnalytics() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           base_query_id: baseId,

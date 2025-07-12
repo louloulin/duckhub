@@ -41,10 +41,12 @@ api.interceptors.response.use(
 
 // 查询API
 export const queryAPI = {
-  execute: (sql: string) => api.post('/query/execute', { sql }),
-  getHistory: () => api.get('/query/history'),
-  getStats: () => api.get('/query/stats'),
-  optimize: (sql: string) => api.post('/query/optimize', { sql }),
+  execute: (sql: string) => api.post('/api/v1/query/execute', { sql }),
+  getHistory: (page?: number, page_size?: number) =>
+    api.get('/api/v1/query/history', { params: { page, page_size } }),
+  analyze: (sql: string, analysis_type: string) =>
+    api.post('/api/v1/query/analyze', { sql, analysis_type }),
+  optimize: (sql: string) => api.post('/api/v1/query/optimize', { sql }),
 }
 
 // 仪表板API
