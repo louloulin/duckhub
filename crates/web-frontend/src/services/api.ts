@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // 创建axios实例
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: '',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -49,10 +49,10 @@ export const queryAPI = {
 
 // 仪表板API
 export const dashboardAPI = {
-  getMetrics: () => api.get('/dashboard/metrics'),
-  getQueryTrends: (timeRange: string) => api.get(`/dashboard/query-trends?range=${timeRange}`),
-  getPerformanceData: (timeRange: string) => api.get(`/dashboard/performance?range=${timeRange}`),
-  getSystemHealth: () => api.get('/dashboard/system-health'),
+  getMetrics: () => api.get('/api/v1/dashboard/metrics'),
+  getQueryTrends: (timeRange: string) => api.get(`/api/v1/dashboard/query-trends?range=${timeRange}`),
+  getPerformanceData: (timeRange: string) => api.get(`/api/v1/monitoring/performance?range=${timeRange}`),
+  getSystemHealth: () => api.get('/api/v1/dashboard/system-health'),
 }
 
 // AI Agent API
@@ -71,11 +71,11 @@ export const aiAgentAPI = {
 
 // 数据探索API
 export const dataExplorerAPI = {
-  getTables: () => api.get('/data/tables'),
-  getTableSchema: (tableName: string) => api.get(`/data/tables/${tableName}/schema`),
-  getTableData: (tableName: string, limit?: number, offset?: number) => 
-    api.get(`/data/tables/${tableName}/data`, { params: { limit, offset } }),
-  getTableStats: (tableName: string) => api.get(`/data/tables/${tableName}/stats`),
+  getTables: () => api.get('/api/v1/data/tables'),
+  getTableSchema: (tableName: string) => api.get(`/api/v1/data/tables/${tableName}/schema`),
+  getTableData: (tableName: string, limit?: number, offset?: number) =>
+    api.get(`/api/v1/data/tables/${tableName}/data`, { params: { limit, offset } }),
+  getTableStats: (tableName: string) => api.get(`/api/v1/data/tables/${tableName}/stats`),
 }
 
 // 时间序列分析API
@@ -100,37 +100,37 @@ export const windowFunctionAPI = {
 
 // 系统管理API
 export const systemAPI = {
-  getHealth: () => api.get('/system/health'),
-  getMetrics: () => api.get('/system/metrics'),
-  getConfig: () => api.get('/system/config'),
-  updateConfig: (config: any) => api.put('/system/config', config),
+  getHealth: () => api.get('/health'),
+  getMetrics: () => api.get('/api/v1/system/metrics/detailed'),
+  getConfig: () => api.get('/api/v1/system/config'),
+  updateConfig: (config: any) => api.put('/api/v1/system/config', config),
 }
 
 // DuckLake指标API
 export const duckLakeAPI = {
   // 获取DuckLake核心指标
   getMetrics: (timeRange?: string) =>
-    api.get('/v1/ducklake/metrics', { params: { range: timeRange } }),
+    api.get('/api/v1/ducklake/metrics', { params: { range: timeRange } }),
 
   // 获取性能历史数据
   getPerformanceHistory: (timeRange?: string) =>
-    api.get('/v1/ducklake/metrics/performance', { params: { range: timeRange } }),
+    api.get('/api/v1/ducklake/metrics/performance', { params: { range: timeRange } }),
 
   // 数据库管理
-  getDatabases: () => api.get('/v1/ducklake/databases'),
-  createDatabase: (config: any) => api.post('/v1/ducklake/databases', config),
-  updateDatabase: (id: string, config: any) => api.put(`/v1/ducklake/databases/${id}`, config),
-  deleteDatabase: (id: string) => api.delete(`/v1/ducklake/databases/${id}`),
+  getDatabases: () => api.get('/api/v1/ducklake/databases'),
+  createDatabase: (config: any) => api.post('/api/v1/ducklake/databases', config),
+  updateDatabase: (id: string, config: any) => api.put(`/api/v1/ducklake/databases/${id}`, config),
+  deleteDatabase: (id: string) => api.delete(`/api/v1/ducklake/databases/${id}`),
 
   // 快照管理
-  getSnapshots: (params?: any) => api.get('/v1/ducklake/snapshots', { params }),
-  createSnapshot: (request: any) => api.post('/v1/ducklake/snapshots', request),
-  deleteSnapshot: (id: string) => api.delete(`/v1/ducklake/snapshots/${id}`),
-  restoreSnapshot: (id: string) => api.post(`/v1/ducklake/snapshots/${id}/restore`),
+  getSnapshots: (params?: any) => api.get('/api/v1/ducklake/snapshots', { params }),
+  createSnapshot: (request: any) => api.post('/api/v1/ducklake/snapshots', request),
+  deleteSnapshot: (id: string) => api.delete(`/api/v1/ducklake/snapshots/${id}`),
+  restoreSnapshot: (id: string) => api.post(`/api/v1/ducklake/snapshots/${id}/restore`),
 
   // 版本控制
-  getVersions: (params?: any) => api.get('/v1/ducklake/versions', { params }),
-  rollbackVersion: (version: number) => api.post(`/v1/ducklake/versions/${version}/rollback`),
+  getVersions: (params?: any) => api.get('/api/v1/ducklake/versions', { params }),
+  rollbackVersion: (version: number) => api.post(`/api/v1/ducklake/versions/${version}/rollback`),
 }
 
 export default api

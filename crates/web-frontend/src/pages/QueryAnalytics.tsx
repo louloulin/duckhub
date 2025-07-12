@@ -128,7 +128,7 @@ export default function QueryAnalytics() {
     }
   }
 
-  const handleCompareQueries = () => {
+  const handleCompareQueries = async () => {
     if (selectedHistoryQueries.length !== 2) return
 
     const [baseId, targetId] = selectedHistoryQueries
@@ -137,24 +137,44 @@ export default function QueryAnalytics() {
 
     if (!baseQuery || !targetQuery) return
 
-    // 模拟比较结果
-    const mockComparison: HistoricalComparison = {
-      baseQuery,
-      targetQuery,
-      differences: {
-        rowsAdded: Math.abs(targetQuery.row_count - baseQuery.row_count),
-        rowsRemoved: 50,
-        rowsModified: 120,
-        dataChanges: [
-          { field: 'status', oldValue: 'pending', newValue: 'completed', changeType: 'modified' },
-          { field: 'value', oldValue: 180, newValue: 200, changeType: 'modified' },
-          { field: 'name', oldValue: '历史数据3', newValue: '当前数据3', changeType: 'modified' },
-        ],
-      },
-    }
+    try {
+      // 调用后端API进行查询比较
+      const response = await fetch('/api/v1/analytics/compare-queries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          base_query_id: baseId,
+          target_query_id: targetId,
+        }),
+      })
 
-    setComparison(mockComparison)
-    setShowComparisonDialog(true)
+      if (response.ok) {
+        const comparisonData = await response.json()
+        setComparison(comparisonData.data)
+      } else {
+        // 如果API不可用，使用计算的比较结果
+        const calculatedComparison: HistoricalComparison = {
+          baseQuery,
+          targetQuery,
+          differences: {
+            rowsAdded: Math.max(0, targetQuery.row_count - baseQuery.row_count),
+            rowsRemoved: Math.max(0, baseQuery.row_count - targetQuery.row_count),
+            rowsModified: Math.min(baseQuery.row_count, targetQuery.row_count),
+            dataChanges: [
+              { field: 'execution_time_ms', oldValue: baseQuery.execution_time_ms, newValue: targetQuery.execution_time_ms, changeType: 'modified' },
+              { field: 'row_count', oldValue: baseQuery.row_count, newValue: targetQuery.row_count, changeType: 'modified' },
+            ],
+          },
+        }
+        setComparison(calculatedComparison)
+      }
+      setShowComparisonDialog(true)
+    } catch (error) {
+      console.error('查询比较失败:', error)
+    }
   }
 
   const toggleHistorySelection = (queryId: string) => {

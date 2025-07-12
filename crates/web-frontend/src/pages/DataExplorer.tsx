@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -42,6 +42,7 @@ import {
   Download,
   Search,
 } from 'lucide-react'
+import { dataExplorerAPI } from '@/services/api'
 
 interface SchemaColumn {
   column: string
@@ -94,41 +95,42 @@ export default function DataExplorer() {
     comment: '',
   })
 
-  // 模拟表数据
-  const tables: TableInfo[] = [
-    {
-      name: 'transactions',
-      rows: 1250000,
-      size: '2.3 GB',
-      schema_version: 5,
-      last_modified: '2024-01-11 14:30:25',
-      description: '交易记录表'
-    },
-    {
-      name: 'users',
-      rows: 45000,
-      size: '120 MB',
-      schema_version: 3,
-      last_modified: '2024-01-10 09:15:10',
-      description: '用户信息表'
-    },
-    {
-      name: 'products',
-      rows: 8500,
-      size: '45 MB',
-      schema_version: 2,
-      last_modified: '2024-01-09 16:20:30',
-      description: '产品信息表'
-    },
-    {
-      name: 'orders',
-      rows: 890000,
-      size: '1.8 GB',
-      schema_version: 4,
-      last_modified: '2024-01-11 12:45:15',
-      description: '订单记录表'
-    },
-  ]
+  // 使用真实API获取表数据
+  const [tables, setTables] = useState<TableInfo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // 获取表列表
+  useEffect(() => {
+    const fetchTables = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await dataExplorerAPI.getTables()
+        if (response.data.success) {
+          // 转换后端数据格式为前端期望格式
+          const tablesData = response.data.data.map((table: any) => ({
+            name: table.name,
+            rows: table.rows,
+            size: table.size,
+            schema_version: table.schema_version,
+            last_modified: table.last_modified,
+            description: table.description
+          }))
+          setTables(tablesData)
+        } else {
+          setError('获取表列表失败')
+        }
+      } catch (err) {
+        console.error('获取表列表失败:', err)
+        setError('获取表列表失败，请稍后重试')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTables()
+  }, [])
 
   const tableSchema: SchemaColumn[] = selectedTable ? [
     { column: 'id', type: 'BIGINT', nullable: false, key: 'PRIMARY', comment: '主键ID' },
@@ -327,38 +329,63 @@ export default function DataExplorer() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {tables.map((table) => (
-                    <div
-                      key={table.name}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                        selectedTable === table.name
-                          ? 'bg-blue-50 border-blue-200'
-                          : 'hover:bg-gray-50'
-                      }`}
-                      onClick={() => setSelectedTable(table.name)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <TableIcon className="h-4 w-4" />
-                          <span className="font-medium">{table.name}</span>
-                        </div>
-                        <Badge variant="outline" className="text-xs">
-                          v{table.schema_version}
-                        </Badge>
-                      </div>
-                      <div className="mt-1 text-xs text-gray-500">
-                        {table.rows.toLocaleString()} 行 • {table.size}
-                      </div>
-                      {table.description && (
-                        <div className="mt-1 text-xs text-gray-400">
-                          {table.description}
-                        </div>
-                      )}
-                      <div className="mt-1 text-xs text-gray-400">
-                        最后修改: {table.last_modified}
-                      </div>
+                  {loading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                      <p className="text-sm text-gray-500 mt-2">加载表列表中...</p>
                     </div>
-                  ))}
+                  ) : error ? (
+                    <div className="text-center py-8">
+                      <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+                      <p className="text-sm text-red-600">{error}</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => window.location.reload()}
+                      >
+                        重试
+                      </Button>
+                    </div>
+                  ) : tables.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Database className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">暂无数据表</p>
+                    </div>
+                  ) : (
+                    tables.map((table) => (
+                      <div
+                        key={table.name}
+                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                          selectedTable === table.name
+                            ? 'bg-blue-50 border-blue-200'
+                            : 'hover:bg-gray-50'
+                        }`}
+                        onClick={() => setSelectedTable(table.name)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <TableIcon className="h-4 w-4" />
+                            <span className="font-medium">{table.name}</span>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            v{table.schema_version}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {table.rows.toLocaleString()} 行 • {table.size}
+                        </div>
+                        {table.description && (
+                          <div className="mt-1 text-xs text-gray-400">
+                            {table.description}
+                          </div>
+                        )}
+                        <div className="mt-1 text-xs text-gray-400">
+                          最后修改: {table.last_modified}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
