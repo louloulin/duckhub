@@ -76,6 +76,7 @@ export const dataExplorerAPI = {
   getTableData: (tableName: string, limit?: number, offset?: number) =>
     api.get(`/api/v1/data/tables/${tableName}/data`, { params: { limit, offset } }),
   getTableStats: (tableName: string) => api.get(`/api/v1/data/tables/${tableName}/stats`),
+  getSchemaEvolution: (tableName: string) => api.get(`/api/v1/data/tables/${tableName}/schema/evolution`),
 }
 
 // 时间序列分析API

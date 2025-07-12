@@ -141,8 +141,8 @@ export default function DataExplorer() {
     { column: 'updated_at', type: 'TIMESTAMP', nullable: true, key: '', comment: '更新时间' },
   ] : []
 
-  // 模拟Schema演进历史
-  const schemaVersions: SchemaVersion[] = [
+  // Schema演进历史状态
+  const [schemaVersions, setSchemaVersions] = useState<SchemaVersion[]>([
     {
       version: 5,
       timestamp: '2024-01-11 14:30:25',
@@ -195,7 +195,24 @@ export default function DataExplorer() {
         }
       ]
     },
-  ]
+  ])
+
+  // 加载Schema演进历史
+  useEffect(() => {
+    const loadSchemaEvolution = async () => {
+      if (selectedTable) {
+        try {
+          const response = await dataExplorerAPI.getSchemaEvolution(selectedTable)
+          setSchemaVersions(response.data.data || [])
+        } catch (error) {
+          console.error('加载Schema演进历史失败:', error)
+          // 保持默认的模拟数据
+        }
+      }
+    }
+
+    loadSchemaEvolution()
+  }, [selectedTable])
 
   // 辅助函数
   const getCompatibilityBadge = (compatibility: string) => {

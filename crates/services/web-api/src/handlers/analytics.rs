@@ -310,10 +310,10 @@ async fn perform_real_time_series_analysis(
         request.time_column, request.value_column, request.table_name, request.time_column
     );
 
-    let data_points = match engine.execute(&sql).await {
-        Ok(result) => {
+    let data_points = match engine.query(&sql).await {
+        Ok(rows) => {
             let mut points = Vec::new();
-            for row in result.rows {
+            for row in rows {
                 if let (Some(timestamp), Some(value)) = (row.get(&request.time_column), row.get(&request.value_column)) {
                     points.push(TimeSeriesPoint {
                         timestamp: timestamp.to_string(),

@@ -337,6 +337,24 @@ pub struct SessionHistoryResponse {
     pub session_info: AISession,
 }
 
+/// 会话列表查询参数
+#[derive(Debug, Deserialize)]
+pub struct SessionListQuery {
+    pub page: Option<u32>,
+    pub page_size: Option<u32>,
+    pub session_type: Option<String>,
+    pub status: Option<String>,
+}
+
+/// 会话列表响应
+#[derive(Debug, Serialize)]
+pub struct SessionListResponse {
+    pub sessions: Vec<AISession>,
+    pub total_count: u32,
+    pub page: u32,
+    pub page_size: u32,
+}
+
 /// 会话历史查询参数
 #[derive(Debug, Deserialize)]
 pub struct SessionHistoryQuery {
@@ -398,6 +416,49 @@ pub async fn create_ai_session(
     Ok(success_response(session))
 }
 
+/// 获取用户的AI会话列表
+#[instrument(skip(app_state))]
+pub async fn get_ai_sessions(
+    app_state: web::Data<AppState>,
+    query: web::Query<SessionListQuery>
+) -> ActixResult<HttpResponse> {
+    info!("获取AI会话列表");
+
+    // TODO: 从数据库获取真实的会话列表
+    let sessions = vec![
+        AISession {
+            session_id: "session-1".to_string(),
+            session_type: "chat".to_string(),
+            created_at: "2024-01-11T10:00:00Z".to_string(),
+            last_activity: "2024-01-11T15:30:00Z".to_string(),
+            message_count: 12,
+            user_id: "current-user-id".to_string(),
+            title: Some("数据分析咨询".to_string()),
+            status: "active".to_string(),
+        },
+        AISession {
+            session_id: "session-2".to_string(),
+            session_type: "analysis".to_string(),
+            created_at: "2024-01-10T14:20:00Z".to_string(),
+            last_activity: "2024-01-10T16:45:00Z".to_string(),
+            message_count: 8,
+            user_id: "current-user-id".to_string(),
+            title: Some("性能优化分析".to_string()),
+            status: "active".to_string(),
+        },
+    ];
+
+    let response = SessionListResponse {
+        sessions,
+        total_count: 2,
+        page: query.page.unwrap_or(1),
+        page_size: query.page_size.unwrap_or(20),
+    };
+
+    info!("成功获取会话列表，返回 {} 个会话", response.sessions.len());
+    Ok(success_response(response))
+}
+
 /// 获取会话历史
 #[instrument(skip(app_state))]
 pub async fn get_session_history(
@@ -434,6 +495,56 @@ pub async fn get_session_history(
     };
 
     info!("成功获取会话历史，返回 {} 条消息", response.messages.len());
+    Ok(success_response(response))
+}
+
+/// 发送AI消息请求
+#[derive(Debug, Deserialize, Validate)]
+pub struct SendMessageRequest {
+    pub session_id: String,
+    #[validate(length(min = 1, max = 5000, message = "消息长度必须在1-5000字符之间"))]
+    pub message: String,
+    pub message_type: String, // "user", "system"
+}
+
+/// 发送AI消息响应
+#[derive(Debug, Serialize)]
+pub struct SendMessageResponse {
+    pub message_id: String,
+    pub session_id: String,
+    pub response: String,
+    pub timestamp: String,
+    pub processing_time_ms: u64,
+}
+
+/// 发送AI消息
+#[instrument(skip(app_state))]
+pub async fn send_ai_message(
+    app_state: web::Data<AppState>,
+    request: web::Json<SendMessageRequest>
+) -> ActixResult<HttpResponse> {
+    if let Err(e) = request.validate() {
+        return Ok(error_response(&format!("请求验证失败: {}", e), 400));
+    }
+
+    info!("发送AI消息到会话: {}", request.session_id);
+    let start_time = std::time::Instant::now();
+
+    // TODO: 实际的AI消息处理逻辑
+    let message_id = uuid::Uuid::new_v4().to_string();
+    let response_text = format!("收到您的消息：{}。这是一个模拟的AI回复。", request.message);
+
+    let processing_time = start_time.elapsed().as_millis() as u64;
+
+    let response = SendMessageResponse {
+        message_id,
+        session_id: request.session_id.clone(),
+        response: response_text,
+        timestamp: Utc::now().to_rfc3339(),
+        processing_time_ms: processing_time,
+    };
+
+    info!("AI消息处理完成，会话: {}, 处理时间: {}ms", request.session_id, processing_time);
     Ok(success_response(response))
 }
 

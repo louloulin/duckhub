@@ -710,10 +710,10 @@ async fn get_real_table_list(engine: &Arc<DuckDBEngine>) -> Result<Vec<TableInfo
         ORDER BY table_name
     "#;
 
-    match engine.execute(sql).await {
-        Ok(result) => {
+    match engine.query(sql).await {
+        Ok(rows) => {
             let mut tables = Vec::new();
-            for row in result.rows {
+            for row in rows {
                 if let Some(table_name) = row.get("table_name") {
                     let table_name_str = table_name.to_string();
 
@@ -752,9 +752,9 @@ async fn get_real_table_list(engine: &Arc<DuckDBEngine>) -> Result<Vec<TableInfo
 /// 获取表的行数
 async fn get_table_row_count(engine: &Arc<DuckDBEngine>, table_name: &str) -> Result<u64, Box<dyn std::error::Error>> {
     let sql = format!("SELECT COUNT(*) FROM {}", table_name);
-    match engine.execute(&sql).await {
-        Ok(result) => {
-            if let Some(row) = result.rows.first() {
+    match engine.query(&sql).await {
+        Ok(rows) => {
+            if let Some(row) = rows.first() {
                 if let Some(count) = row.get("count") {
                     return Ok(count.as_u64().unwrap_or(0));
                 }
@@ -771,9 +771,9 @@ async fn get_table_column_count(engine: &Arc<DuckDBEngine>, table_name: &str) ->
         "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = '{}'",
         table_name
     );
-    match engine.execute(&sql).await {
-        Ok(result) => {
-            if let Some(row) = result.rows.first() {
+    match engine.query(&sql).await {
+        Ok(rows) => {
+            if let Some(row) = rows.first() {
                 if let Some(count) = row.get("count") {
                     return Ok(count.as_u64().unwrap_or(0) as u32);
                 }

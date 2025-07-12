@@ -193,7 +193,9 @@ fn configure_routes(cfg: &mut web::ServiceConfig) {
                 .route("/analyze", web::post().to(ai_analyze))
                 .route("/suggest", web::post().to(ai_suggest))
                 .route("/session", web::post().to(create_ai_session))
+                .route("/sessions", web::get().to(get_ai_sessions))
                 .route("/session/{session_id}/history", web::get().to(get_session_history))
+                .route("/message", web::post().to(send_ai_message))
                 .route("/nlp-query", web::post().to(process_nlp_query))
         )
         

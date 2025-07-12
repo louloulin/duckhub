@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { systemAPI } from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -77,6 +78,56 @@ export default function Settings() {
       alertThreshold: 80,
     },
   })
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // 加载系统配置
+  useEffect(() => {
+    const loadSystemConfig = async () => {
+      setIsLoading(true)
+      try {
+        const response = await systemAPI.getConfig()
+        const config = response.data
+
+        // 将后端配置映射到前端配置格式
+        if (config) {
+          setDuckLakeConfig({
+            snapshotRetention: {
+              enabled: config.database?.enable_wal || true,
+              retentionDays: 30,
+              maxSnapshots: 100,
+              autoCleanup: true,
+            },
+            performance: {
+              memoryLimit: `${config.database?.memory_limit_mb || 2048}MB`,
+              threadCount: 4,
+              cacheSize: `${config.cache?.max_size_mb || 512}MB`,
+              queryTimeout: Math.floor((config.database?.query_timeout_ms || 30000) / 1000),
+            },
+            security: {
+              encryptionEnabled: config.security?.encryption_enabled || true,
+              accessLogging: config.security?.access_logging || true,
+              auditTrail: config.security?.audit_trail || false,
+              backupEncryption: config.security?.backup_encryption || true,
+            },
+            automation: {
+              autoSnapshot: true,
+              snapshotSchedule: 'daily',
+              performanceMonitoring: config.monitoring?.enabled || true,
+              alertThreshold: config.monitoring?.alert_threshold || 80,
+            },
+          })
+        }
+      } catch (error) {
+        console.error('加载系统配置失败:', error)
+        // 保持默认配置
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadSystemConfig()
+  }, [])
 
   const handleConfigChange = (section: keyof DuckLakeConfig, key: string, value: any) => {
     setDuckLakeConfig(prev => ({
@@ -88,14 +139,80 @@ export default function Settings() {
     }))
   }
 
-  const handleSaveConfig = () => {
-    // 保存配置逻辑
-    console.log('保存DuckLake配置:', duckLakeConfig)
+  const handleSaveConfig = async () => {
+    setIsSaving(true)
+    try {
+      // 将前端配置映射到后端配置格式
+      const backendConfig = {
+        database: {
+          memory_limit_mb: parseInt(duckLakeConfig.performance.memoryLimit.replace('MB', '').replace('GB', '')) *
+            (duckLakeConfig.performance.memoryLimit.includes('GB') ? 1024 : 1),
+          query_timeout_ms: duckLakeConfig.performance.queryTimeout * 1000,
+          enable_wal: duckLakeConfig.snapshotRetention.enabled,
+        },
+        cache: {
+          enabled: true,
+          max_size_mb: parseInt(duckLakeConfig.performance.cacheSize.replace('MB', '')),
+        },
+        security: {
+          encryption_enabled: duckLakeConfig.security.encryptionEnabled,
+          access_logging: duckLakeConfig.security.accessLogging,
+          audit_trail: duckLakeConfig.security.auditTrail,
+          backup_encryption: duckLakeConfig.security.backupEncryption,
+        },
+        monitoring: {
+          enabled: duckLakeConfig.automation.performanceMonitoring,
+          alert_threshold: duckLakeConfig.automation.alertThreshold,
+        },
+      }
+
+      await systemAPI.updateConfig(backendConfig)
+      console.log('系统配置保存成功')
+    } catch (error) {
+      console.error('保存系统配置失败:', error)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const handleResetConfig = () => {
-    // 重置配置逻辑
-    console.log('重置DuckLake配置')
+  const handleResetConfig = async () => {
+    try {
+      // 重新加载配置
+      const response = await systemAPI.getConfig()
+      const config = response.data
+
+      if (config) {
+        setDuckLakeConfig({
+          snapshotRetention: {
+            enabled: config.database?.enable_wal || true,
+            retentionDays: 30,
+            maxSnapshots: 100,
+            autoCleanup: true,
+          },
+          performance: {
+            memoryLimit: `${config.database?.memory_limit_mb || 2048}MB`,
+            threadCount: 4,
+            cacheSize: `${config.cache?.max_size_mb || 512}MB`,
+            queryTimeout: Math.floor((config.database?.query_timeout_ms || 30000) / 1000),
+          },
+          security: {
+            encryptionEnabled: config.security?.encryption_enabled || true,
+            accessLogging: config.security?.access_logging || true,
+            auditTrail: config.security?.audit_trail || false,
+            backupEncryption: config.security?.backup_encryption || true,
+          },
+          automation: {
+            autoSnapshot: true,
+            snapshotSchedule: 'daily',
+            performanceMonitoring: config.monitoring?.enabled || true,
+            alertThreshold: config.monitoring?.alert_threshold || 80,
+          },
+        })
+      }
+      console.log('配置已重置')
+    } catch (error) {
+      console.error('重置配置失败:', error)
+    }
   }
 
   return (
