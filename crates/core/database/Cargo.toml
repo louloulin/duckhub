@@ -18,8 +18,8 @@ duckhub-common = { path = "../common" }
 tokio.workspace = true
 async-trait.workspace = true
 
-# Database (temporarily disabled due to compilation issues)
-# # duckdb.workspace = true
+# Database - Real DuckDB implementation
+duckdb = "1.1"
 redis.workspace = true
 
 # Serialization

@@ -10,9 +10,9 @@ pub struct DuckDBConnection {
 }
 
 impl DuckDBConnection {
-    pub fn new(path: &str) -> Result<Self> {
+    pub async fn new(path: &str) -> Result<Self> {
         Ok(DuckDBConnection {
-            connection: Connection::open(path)?,
+            connection: Connection::open(path).await?,
         })
     }
 }
@@ -97,7 +97,7 @@ impl ConnectionPool {
 
     /// Create a new database connection
     async fn create_connection(&self) -> Result<DuckDBConnection> {
-        DuckDBConnection::new(&self.database_config.duckdb_path)
+        DuckDBConnection::new(&self.database_config.duckdb_path).await
     }
 
     /// Get a connection from the pool
@@ -228,7 +228,7 @@ impl ConnectionPool {
 
         // Ensure minimum connections
         while conns.len() < config.min_connections as usize {
-            match DuckDBConnection::new(&database_config.duckdb_path) {
+            match DuckDBConnection::new(&database_config.duckdb_path).await {
                 Ok(conn) => {
                     conns.push_back(PooledConnection::new(conn.connection));
                     debug!("Added connection to maintain minimum pool size");

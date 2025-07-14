@@ -2,34 +2,34 @@
 
 use duckhub_common::prelude::*;
 use duckhub_common::config::DatabaseConfig;
-use crate::extensions::{ExtensionManager, DataLakeFeature};
+// use crate::extensions::{ExtensionManager, DataLakeFeature};  // Temporarily disabled
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, info, instrument};
 use base64::prelude::*;
 
-// Re-export mock types
-pub use crate::mock_duckdb::*;
+// Re-export real DuckDB types
+pub use crate::real_duckdb::*;
 
 /// DuckDB engine implementation
 #[derive(Debug)]
 pub struct DuckDBEngine {
     config: DatabaseConfig,
     connection: Arc<Mutex<Connection>>,
-    extension_manager: Arc<Mutex<ExtensionManager>>,
+    // extension_manager: Arc<Mutex<ExtensionManager>>,  // Temporarily disabled
 }
 
 impl DuckDBEngine {
     /// Create a new DuckDB engine
     pub async fn new(config: DatabaseConfig) -> Result<Self> {
-        let extension_manager = Arc::new(Mutex::new(ExtensionManager::new()));
+        // let extension_manager = Arc::new(Mutex::new(ExtensionManager::new()));  // Temporarily disabled
         
         // Create connection
         let connection = if config.duckdb_path == ":memory:" {
-            Connection::open_in_memory()?
+            Connection::open_in_memory().await?
         } else {
-            Connection::open(&config.duckdb_path)?
+            Connection::open(&config.duckdb_path).await?
         };
         
         let connection = Arc::new(Mutex::new(connection));
@@ -37,39 +37,37 @@ impl DuckDBEngine {
         // Configure DuckDB
         {
             let conn = connection.lock().await;
-            let mut ext_mgr = extension_manager.lock().await;
-            Self::configure_duckdb(&*conn, &config, &mut *ext_mgr).await?;
+            Self::configure_duckdb(&*conn, &config).await?;
         }
-        
+
         Ok(Self {
             config,
             connection,
-            extension_manager,
         })
     }
     
     /// Configure DuckDB with the provided settings
-    async fn configure_duckdb(conn: &Connection, config: &DatabaseConfig, extension_manager: &mut ExtensionManager) -> Result<()> {
+    async fn configure_duckdb(conn: &Connection, config: &DatabaseConfig) -> Result<()> {
         // Set memory limit if specified
         if let Some(memory_limit) = &config.memory_limit {
-            conn.execute::<&str>(&format!("SET memory_limit='{}'", memory_limit), &[])
+            conn.execute(&format!("SET memory_limit='{}'", memory_limit), &[]).await
                 .map_err(|e| DuckHubError::database(format!("Failed to set memory limit: {}", e)))?;
         }
         
         // Set threads if specified
         if let Some(threads) = config.threads {
-            conn.execute::<&str>(&format!("SET threads={}", threads), &[])
+            conn.execute(&format!("SET threads={}", threads), &[]).await
                 .map_err(|e| DuckHubError::database(format!("Failed to set threads: {}", e)))?;
         }
         
         // Set temp directory if specified
         if let Some(temp_dir) = &config.temp_directory {
-            conn.execute::<&str>(&format!("SET temp_directory='{}'", temp_dir), &[])
+            conn.execute(&format!("SET temp_directory='{}'", temp_dir), &[]).await
                 .map_err(|e| DuckHubError::database(format!("Failed to set temp directory: {}", e)))?;
         }
         
-        // Load extensions
-        extension_manager.setup_data_lake_extensions(conn).await?;
+        // Load extensions (temporarily disabled)
+        // extension_manager.setup_data_lake_extensions(conn).await?;
         
         Ok(())
     }
@@ -77,16 +75,16 @@ impl DuckDBEngine {
     /// Execute a SQL query
     pub async fn execute(&self, sql: &str) -> Result<usize> {
         let conn = self.connection.lock().await;
-        conn.execute::<&str>(sql, &[])
+        conn.execute(sql, &[]).await
             .map_err(|e| DuckHubError::database(format!("Failed to execute SQL: {}", e)))
     }
     
     /// Query rows from the database
     pub async fn query(&self, sql: &str) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         let conn = self.connection.lock().await;
-        let stmt = conn.prepare(sql)
+        let _stmt = conn.prepare(sql).await
             .map_err(|e| DuckHubError::database(format!("Failed to prepare SQL: {}", e)))?;
-        
+
         // Mock implementation for query
         Ok(vec![])
     }
@@ -94,7 +92,7 @@ impl DuckDBEngine {
     /// Count rows from a query
     pub async fn count(&self, sql: &str) -> Result<i64> {
         let conn = self.connection.lock().await;
-        let stmt = conn.prepare(sql)
+        let _stmt = conn.prepare(sql).await
             .map_err(|e| DuckHubError::database(format!("Failed to prepare SQL: {}", e)))?;
         
         // Mock implementation for count
@@ -104,7 +102,9 @@ impl DuckDBEngine {
     /// Execute SQL with parameters
     pub async fn execute_with_params(&self, sql: &str, params: &[&str]) -> Result<ExecuteResult> {
         let conn = self.connection.lock().await;
-        let rows_affected = conn.execute(sql, params)
+        // Convert &str params to &dyn Display
+        let display_params: Vec<&dyn std::fmt::Display> = params.iter().map(|s| s as &dyn std::fmt::Display).collect();
+        let rows_affected = conn.execute(sql, &display_params).await
             .map_err(|e| DuckHubError::database(format!("Failed to execute SQL with params: {}", e)))?;
 
         Ok(ExecuteResult { rows_affected })
@@ -113,7 +113,7 @@ impl DuckDBEngine {
     /// Query with parameters
     pub async fn query_with_params(&self, sql: &str, params: &[&str]) -> Result<QueryResult> {
         let conn = self.connection.lock().await;
-        let stmt = conn.prepare(sql)
+        let _stmt = conn.prepare(sql).await
             .map_err(|e| DuckHubError::database(format!("Failed to prepare SQL: {}", e)))?;
 
         // Mock implementation for query with params
@@ -125,9 +125,10 @@ impl DuckDBEngine {
     /// Check database connection
     pub async fn check_connection(&self) -> Result<bool> {
         let conn = self.connection.lock().await;
-        conn.execute::<&str>("SELECT 1", &[])
-            .map(|_| true)
-            .map_err(|e| DuckHubError::database(format!("Connection check failed: {}", e)))
+        match conn.execute("SELECT 1", &[]).await {
+            Ok(_) => Ok(true),
+            Err(e) => Err(DuckHubError::database(format!("Connection check failed: {}", e)))
+        }
     }
 
     /// List all databases

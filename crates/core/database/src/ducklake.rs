@@ -247,16 +247,17 @@ impl DuckLakeManager {
     }
 
     /// 执行带重试的操作（增强版）
-    async fn execute_with_retry<F, T>(&self, operation: F) -> Result<T>
+    async fn execute_with_retry<F, Fut, T>(&self, operation: F) -> Result<T>
     where
-        F: Fn() -> Result<T> + Send + Sync,
+        F: Fn() -> Fut + Send + Sync,
+        Fut: std::future::Future<Output = Result<T>> + Send,
         T: Send,
     {
         let mut last_error = None;
         let mut delay_ms = self.retry_config.initial_delay_ms;
 
         for attempt in 0..=self.retry_config.max_retries {
-            match operation() {
+            match operation().await {
                 Ok(result) => {
                     if attempt > 0 {
                         info!("操作在第{}次重试后成功", attempt);
@@ -327,11 +328,9 @@ impl DuckLakeManager {
 
         debug!("正在附加DuckLake数据库: {}", attach_sql);
 
-        // 使用重试机制执行附加操作
-        let result = self.execute_with_retry(|| {
-            self.connection.execute::<&str>(&attach_sql, &[])
-                .map_err(|e| DuckHubError::database(format!("附加DuckLake数据库失败: {}", e)))
-        }).await;
+        // 直接执行附加操作
+        let result = self.connection.execute(&attach_sql, &[]).await
+            .map_err(|e| DuckHubError::database(format!("附加DuckLake数据库失败: {}", e)));
 
         match result {
             Ok(_) => {
@@ -438,7 +437,7 @@ impl DuckLakeManager {
         secret_sql.push_str(&params.join(", "));
         secret_sql.push(')');
         
-        self.connection.execute::<&str>(&secret_sql, &[])
+        self.connection.execute(&secret_sql, &[]).await
             .map_err(|e| DuckHubError::database(format!("Failed to create DuckLake secret: {}", e)))?;
         
         info!("Created DuckLake secret: {}", if secret_name.is_empty() { "default" } else { secret_name });
@@ -452,7 +451,7 @@ impl DuckLakeManager {
                                 config.metadata_path,
                                 config.data_path.as_ref().unwrap_or(&format!("{}.files", config.metadata_path)));
         
-        self.connection.execute::<&str>(&secret_sql, &[])
+        self.connection.execute(&secret_sql, &[]).await
             .map_err(|e| DuckHubError::database(format!("Failed to create persistent DuckLake secret: {}", e)))?;
         
         info!("Created persistent DuckLake secret: {}", secret_name);
