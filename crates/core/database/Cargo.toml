@@ -18,8 +18,8 @@ duckhub-common = { path = "../common" }
 tokio.workspace = true
 async-trait.workspace = true
 
-# Database - Real DuckDB implementation
-duckdb = "1.1"
+# Database - Real DuckDB implementation (latest version)
+duckdb = { version = "1.3.2", features = ["bundled", "modern-full"] }
 redis.workspace = true
 
 # Serialization
@@ -48,9 +48,9 @@ parking_lot.workspace = true
 # azure_storage.workspace = true
 # azure_storage_blobs.workspace = true
 
-# Data formats (temporarily disabled due to arrow-arith conflicts)
-# parquet.workspace = true
-# arrow.workspace = true
+# Data formats - Latest compatible versions with DuckDB 1.3.2
+arrow = { version = "55.0", default-features = false, features = ["prettyprint", "ffi"] }
+parquet = "55.0"
 
 # Metrics
 prometheus.workspace = true

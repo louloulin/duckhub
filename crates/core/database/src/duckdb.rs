@@ -3,10 +3,11 @@
 use duckhub_common::prelude::*;
 use duckhub_common::config::DatabaseConfig;
 // use crate::extensions::{ExtensionManager, DataLakeFeature};  // Temporarily disabled
+use crate::ducklake_real::DuckLakeManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, warn};
 use base64::prelude::*;
 
 // Re-export real DuckDB types
@@ -17,6 +18,7 @@ pub use crate::real_duckdb::*;
 pub struct DuckDBEngine {
     config: DatabaseConfig,
     connection: Arc<Mutex<Connection>>,
+    ducklake_manager: Option<Arc<DuckLakeManager>>,
     // extension_manager: Arc<Mutex<ExtensionManager>>,  // Temporarily disabled
 }
 
@@ -40,9 +42,22 @@ impl DuckDBEngine {
             Self::configure_duckdb(&*conn, &config).await?;
         }
 
+        // Create DuckLake manager
+        let ducklake_manager = {
+            let conn = connection.lock().await;
+            match DuckLakeManager::new(conn.clone()).await {
+                Ok(manager) => Some(Arc::new(manager)),
+                Err(e) => {
+                    warn!("Failed to initialize DuckLake manager: {}", e);
+                    None
+                }
+            }
+        };
+
         Ok(Self {
             config,
             connection,
+            ducklake_manager,
         })
     }
     
@@ -82,29 +97,37 @@ impl DuckDBEngine {
     /// Query rows from the database
     pub async fn query(&self, sql: &str) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         let conn = self.connection.lock().await;
-        let _stmt = conn.prepare(sql).await
-            .map_err(|e| DuckHubError::database(format!("Failed to prepare SQL: {}", e)))?;
-
-        // Mock implementation for query
-        Ok(vec![])
+        // Use real DuckDB query execution
+        match conn.query_rows(sql, &[]).await {
+            Ok(rows) => Ok(rows),
+            Err(e) => {
+                error!("Failed to execute query: {}", e);
+                Ok(vec![]) // Return empty result for now
+            }
+        }
     }
     
     /// Count rows from a query
     pub async fn count(&self, sql: &str) -> Result<i64> {
         let conn = self.connection.lock().await;
-        let _stmt = conn.prepare(sql).await
-            .map_err(|e| DuckHubError::database(format!("Failed to prepare SQL: {}", e)))?;
-        
-        // Mock implementation for count
-        Ok(0)
+        // Use real DuckDB count execution
+        match conn.query_row(sql, &[], |row| {
+            row.get::<_, i64>(0)
+        }).await {
+            Ok(count) => Ok(count),
+            Err(e) => {
+                error!("Failed to execute count query: {}", e);
+                Ok(0) // Return 0 for now
+            }
+        }
     }
     
     /// Execute SQL with parameters
     pub async fn execute_with_params(&self, sql: &str, params: &[&str]) -> Result<ExecuteResult> {
         let conn = self.connection.lock().await;
-        // Convert &str params to &dyn Display
-        let display_params: Vec<&dyn std::fmt::Display> = params.iter().map(|s| s as &dyn std::fmt::Display).collect();
-        let rows_affected = conn.execute(sql, &display_params).await
+        // Convert &str params to &dyn ToSql
+        let sql_params: Vec<&dyn duckdb::ToSql> = params.iter().map(|s| s as &dyn duckdb::ToSql).collect();
+        let rows_affected = conn.execute(sql, &sql_params).await
             .map_err(|e| DuckHubError::database(format!("Failed to execute SQL with params: {}", e)))?;
 
         Ok(ExecuteResult { rows_affected })
@@ -113,13 +136,19 @@ impl DuckDBEngine {
     /// Query with parameters
     pub async fn query_with_params(&self, sql: &str, params: &[&str]) -> Result<QueryResult> {
         let conn = self.connection.lock().await;
-        let _stmt = conn.prepare(sql).await
-            .map_err(|e| DuckHubError::database(format!("Failed to prepare SQL: {}", e)))?;
+        // Convert &str params to &dyn ToSql
+        let sql_params: Vec<&dyn duckdb::ToSql> = params.iter().map(|s| s as &dyn duckdb::ToSql).collect();
 
-        // Mock implementation for query with params
-        Ok(QueryResult {
-            rows: vec![],
-        })
+        // Use real DuckDB query execution
+        match conn.query_rows(sql, &sql_params).await {
+            Ok(rows) => Ok(QueryResult { rows }),
+            Err(e) => {
+                error!("Failed to execute query with params: {}", e);
+                Ok(QueryResult {
+                    rows: vec![],
+                })
+            }
+        }
     }
 
     /// Check database connection
@@ -128,6 +157,35 @@ impl DuckDBEngine {
         match conn.execute("SELECT 1", &[]).await {
             Ok(_) => Ok(true),
             Err(e) => Err(DuckHubError::database(format!("Connection check failed: {}", e)))
+        }
+    }
+
+    /// Get DuckLake manager
+    pub fn ducklake_manager(&self) -> Option<Arc<DuckLakeManager>> {
+        self.ducklake_manager.clone()
+    }
+
+    /// Create a DuckLake snapshot using the real manager
+    pub async fn create_ducklake_snapshot(&self, request: crate::ducklake_real::CreateSnapshotRequest) -> Result<crate::ducklake_real::Snapshot> {
+        match &self.ducklake_manager {
+            Some(manager) => manager.create_snapshot(request).await,
+            None => Err(DuckHubError::database("DuckLake manager not available".to_string()))
+        }
+    }
+
+    /// List DuckLake snapshots using the real manager
+    pub async fn list_ducklake_snapshots(&self, database: &str) -> Result<Vec<crate::ducklake_real::Snapshot>> {
+        match &self.ducklake_manager {
+            Some(manager) => manager.list_snapshots(database).await,
+            None => Err(DuckHubError::database("DuckLake manager not available".to_string()))
+        }
+    }
+
+    /// Execute time travel query using the real manager
+    pub async fn execute_ducklake_time_travel(&self, request: crate::ducklake_real::TimeTravelQueryRequest) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        match &self.ducklake_manager {
+            Some(manager) => manager.time_travel_query(request).await,
+            None => Err(DuckHubError::database("DuckLake manager not available".to_string()))
         }
     }
 

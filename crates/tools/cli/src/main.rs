@@ -1,10 +1,11 @@
 //! DuckHub CLI Tool
 
 use clap::{Parser, Subcommand};
-use duckhub_common::prelude::*;
 use duckhub_common::DatabaseConfig;
 use duckhub_common::utils::{generate_id, now};
-use duckhub_database::*;
+use duckhub_common::types::{Query, QueryResult, QueryMetadata};
+use duckhub_common::{Result, DuckHubError};
+use duckhub_database::{DuckDBEngine, DataLakeManager};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tabled::{Table, Tabled};
@@ -560,28 +561,19 @@ async fn run_benchmark(engine: Arc<DuckDBEngine>, count: u32, concurrency: u32) 
 
     let queries_per_task = count / concurrency;
     
-    for _ in 0..concurrency {
-        let engine_clone = engine.clone();
-        let handle = tokio::spawn(async move {
-            for _ in 0..queries_per_task {
-                let query = Query {
-                    id: generate_id(),
-                    sql: "SELECT 1 as test_col".to_string(),
-                    parameters: HashMap::new(),
-                    user_id: None,
-                    created_at: now(),
-                    timeout_seconds: None,
-                };
-                
-                let _ = execute_query_helper(&engine_clone, &query).await;
-            }
-        });
-        handles.push(handle);
-    }
+    // TODO: Fix Send trait issue with DuckDB ToSql
+    // Sequential execution for now due to Send trait limitations
+    for _ in 0..count {
+        let query = Query {
+            id: generate_id(),
+            sql: "SELECT 1 as test_col".to_string(),
+            parameters: HashMap::new(),
+            user_id: None,
+            created_at: now(),
+            timeout_seconds: None,
+        };
 
-    // Wait for all tasks to complete
-    for handle in handles {
-        handle.await.map_err(|e| DuckHubError::internal(format!("Task failed: {}", e)))?;
+        let _ = execute_query_helper(&engine, &query).await;
     }
 
     let total_time = start_time.elapsed();
