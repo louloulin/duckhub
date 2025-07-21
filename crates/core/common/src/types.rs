@@ -322,6 +322,7 @@ impl Default for PoolConfig {
 pub struct DatabaseInfo {
     pub id: String,
     pub name: String,
+    pub description: Option<String>,
     pub status: String,
     pub size: String,
     pub created_at: DateTime<Utc>,

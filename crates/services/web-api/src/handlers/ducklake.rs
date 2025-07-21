@@ -11,6 +11,17 @@ use duckhub_database::duckdb::QueryResult as DuckDBQueryResult;
 use validator::Validate;
 use crate::{AppState, success_response, error_response};
 
+/// 创建数据库请求
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateDatabaseRequest {
+    /// 数据库名称
+    #[validate(length(min = 1, max = 100, message = "数据库名称长度必须在1-100字符之间"))]
+    pub name: String,
+    /// 数据库描述
+    #[validate(length(max = 500, message = "描述长度不能超过500字符"))]
+    pub description: Option<String>,
+}
+
 /// 数据库信息
 #[derive(Debug, Serialize)]
 pub struct DatabaseInfo {
@@ -426,6 +437,50 @@ async fn get_real_version_history(engine: &Arc<DuckDBEngine>) -> Result<Vec<Vers
         Err(_) => {
             // 如果系统表不存在，返回空列表
             Ok(vec![])
+        }
+    }
+}
+
+/// 创建数据库
+#[instrument(skip(app_state))]
+pub async fn create_database(
+    app_state: web::Data<AppState>,
+    request: web::Json<CreateDatabaseRequest>,
+) -> ActixResult<HttpResponse> {
+    info!("创建DuckLake数据库: {}", request.name);
+
+    // 验证请求
+    if let Err(validation_errors) = request.validate() {
+        return Ok(error_response(
+            &format!("请求参数验证失败: {:?}", validation_errors),
+            400,
+        ));
+    }
+
+    let engine = &app_state.engine;
+
+    // 使用DuckLake管理器创建数据库
+    match engine.create_ducklake_database(&request.name, request.description.as_deref()).await {
+        Ok(database_info) => {
+            info!("数据库 {} 创建成功", request.name);
+
+            let response = json!({
+                "database": {
+                    "name": database_info.name,
+                    "description": database_info.description,
+                    "created_at": database_info.created_at,
+                    "status": "active"
+                }
+            });
+
+            Ok(success_response(response))
+        }
+        Err(e) => {
+            error!("创建数据库失败: {}", e);
+            Ok(error_response(
+                &format!("创建数据库失败: {}", e),
+                500,
+            ))
         }
     }
 }

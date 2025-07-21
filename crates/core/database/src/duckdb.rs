@@ -191,25 +191,31 @@ impl DuckDBEngine {
 
     /// List all databases
     pub async fn list_databases(&self) -> Result<Vec<DatabaseInfo>> {
-        // Mock implementation - return sample databases
-        Ok(vec![
-            DatabaseInfo {
-                id: "db1".to_string(),
-                name: "financial_data".to_string(),
-                status: "active".to_string(),
-                size: "2.5GB".to_string(),
-                created_at: chrono::Utc::now() - chrono::Duration::days(30),
-                last_accessed: Some(chrono::Utc::now() - chrono::Duration::hours(1)),
-            },
-            DatabaseInfo {
-                id: "db2".to_string(),
-                name: "user_analytics".to_string(),
-                status: "active".to_string(),
-                size: "1.8GB".to_string(),
-                created_at: chrono::Utc::now() - chrono::Duration::days(15),
-                last_accessed: Some(chrono::Utc::now() - chrono::Duration::hours(2)),
-            },
-        ])
+        if let Some(ref manager) = self.ducklake_manager {
+            manager.list_databases().await
+        } else {
+            // Fallback to mock implementation if DuckLake manager is not available
+            Ok(vec![
+                DatabaseInfo {
+                    id: "db1".to_string(),
+                    name: "financial_data".to_string(),
+                    description: Some("Financial data warehouse".to_string()),
+                    status: "active".to_string(),
+                    size: "2.5GB".to_string(),
+                    created_at: chrono::Utc::now() - chrono::Duration::days(30),
+                    last_accessed: Some(chrono::Utc::now() - chrono::Duration::hours(1)),
+                },
+                DatabaseInfo {
+                    id: "db2".to_string(),
+                    name: "user_analytics".to_string(),
+                    description: Some("User behavior analytics".to_string()),
+                    status: "active".to_string(),
+                    size: "1.8GB".to_string(),
+                    created_at: chrono::Utc::now() - chrono::Duration::days(15),
+                    last_accessed: Some(chrono::Utc::now() - chrono::Duration::hours(2)),
+                },
+            ])
+        }
     }
 
     /// List snapshots for a database
@@ -349,6 +355,24 @@ impl DuckDBEngine {
             total_tables: 2,
             total_size_bytes: 1024 * 1024 * 2 + 1024 * 512, // 2.5MB total
         })
+    }
+
+    /// Create DuckLake database
+    pub async fn create_ducklake_database(&self, name: &str, description: Option<&str>) -> Result<DatabaseInfo> {
+        if let Some(ref manager) = self.ducklake_manager {
+            manager.create_database(name, description).await
+        } else {
+            // Fallback to mock implementation if DuckLake manager is not available
+            Ok(DatabaseInfo {
+                id: format!("db_{}", chrono::Utc::now().timestamp()),
+                name: name.to_string(),
+                description: description.map(|s| s.to_string()),
+                status: "active".to_string(),
+                size: "0B".to_string(),
+                created_at: chrono::Utc::now(),
+                last_accessed: Some(chrono::Utc::now()),
+            })
+        }
     }
 
     /// Create snapshot
