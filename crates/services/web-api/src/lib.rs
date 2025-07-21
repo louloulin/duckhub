@@ -270,6 +270,7 @@ fn configure_routes(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/v1/ducklake")
                 .route("/databases", web::get().to(list_databases))
+                .route("/databases", web::post().to(create_database))
                 .route("/databases/{name}/snapshots", web::get().to(list_snapshots))
                 .route("/databases/{name}/time-travel", web::post().to(time_travel_query))
                 .route("/databases/{name}/schema", web::get().to(get_schema))

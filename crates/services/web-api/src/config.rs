@@ -32,7 +32,7 @@ impl Default for WebApiConfig {
     fn default() -> Self {
         Self {
             host: "0.0.0.0".to_string(),
-            port: 8080,
+            port: 8082,
             workers: num_cpus::get(),
             request_timeout: 30,
             max_request_size: 10 * 1024 * 1024, // 10MB

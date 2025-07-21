@@ -116,6 +116,11 @@ impl Connection {
                 }
             } else {
                 info!("Successfully installed extension: {}", extension);
+                // 即使DuckLake扩展安装成功，也创建兼容的元数据表
+                if extension == "ducklake" {
+                    info!("Creating DuckLake compatibility metadata tables");
+                    self.create_ducklake_metadata_tables_internal().await?;
+                }
             }
         }
 
