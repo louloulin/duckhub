@@ -90,15 +90,15 @@ impl DuckDBEngine {
     /// Execute a SQL query
     pub async fn execute(&self, sql: &str) -> Result<usize> {
         let conn = self.connection.lock().await;
-        conn.execute(sql, &[]).await
+        conn.execute_simple(sql).await
             .map_err(|e| DuckHubError::database(format!("Failed to execute SQL: {}", e)))
     }
-    
+
     /// Query rows from the database
     pub async fn query(&self, sql: &str) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         let conn = self.connection.lock().await;
         // Use real DuckDB query execution
-        match conn.query_rows(sql, &[]).await {
+        match conn.query_rows_simple(sql).await {
             Ok(rows) => Ok(rows),
             Err(e) => {
                 error!("Failed to execute query: {}", e);
@@ -154,7 +154,7 @@ impl DuckDBEngine {
     /// Check database connection
     pub async fn check_connection(&self) -> Result<bool> {
         let conn = self.connection.lock().await;
-        match conn.execute("SELECT 1", &[]).await {
+        match conn.execute_simple("SELECT 1").await {
             Ok(_) => Ok(true),
             Err(e) => Err(DuckHubError::database(format!("Connection check failed: {}", e)))
         }

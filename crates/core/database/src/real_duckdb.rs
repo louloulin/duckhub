@@ -294,10 +294,24 @@ impl Connection {
 
     /// Execute a SQL statement
     pub async fn execute(&self, sql: &str, params: &[&dyn ToSql]) -> Result<usize> {
+        let sql = sql.to_string();
         let conn = self.inner.lock().await;
         debug!("Executing SQL: {}", sql);
 
-        let result = conn.execute(sql, params)
+        let result = conn.execute(&sql, params)
+            .map_err(|e| DuckHubError::database(format!("SQL execution failed: {}", e)))?;
+
+        debug!("SQL executed successfully, affected rows: {}", result);
+        Ok(result)
+    }
+
+    /// Execute a SQL statement without parameters (thread-safe)
+    pub async fn execute_simple(&self, sql: &str) -> Result<usize> {
+        let sql = sql.to_string();
+        let conn = self.inner.lock().await;
+        debug!("Executing SQL: {}", sql);
+
+        let result = conn.execute(&sql, [])
             .map_err(|e| DuckHubError::database(format!("SQL execution failed: {}", e)))?;
 
         debug!("SQL executed successfully, affected rows: {}", result);
@@ -337,6 +351,55 @@ impl Connection {
             .collect();
 
         let rows = stmt.query_map(params, |row| {
+            let mut map = HashMap::new();
+            for (i, column_name) in column_names.iter().enumerate() {
+                // Try to get different types and convert to JSON Value
+                let value = if let Ok(val) = row.get::<_, String>(i) {
+                    serde_json::Value::String(val)
+                } else if let Ok(val) = row.get::<_, i64>(i) {
+                    serde_json::Value::Number(serde_json::Number::from(val))
+                } else if let Ok(val) = row.get::<_, f64>(i) {
+                    serde_json::Value::Number(serde_json::Number::from_f64(val).unwrap_or(serde_json::Number::from(0)))
+                } else if let Ok(val) = row.get::<_, bool>(i) {
+                    serde_json::Value::Bool(val)
+                } else {
+                    serde_json::Value::Null
+                };
+                map.insert(column_name.clone(), value);
+            }
+            Ok(map)
+        })
+        .map_err(|e| DuckHubError::database(format!("Query execution failed: {}", e)))?;
+
+        let mut results = Vec::new();
+        for row in rows {
+            results.push(row.map_err(|e| DuckHubError::database(format!("Row processing failed: {}", e)))?);
+        }
+
+        debug!("Query returned {} rows", results.len());
+        Ok(results)
+    }
+
+    /// Query multiple rows without parameters (thread-safe)
+    pub async fn query_rows_simple(&self, sql: &str) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        let sql = sql.to_string();
+        let conn = self.inner.lock().await;
+        debug!("Executing query_rows_simple: {}", sql);
+
+        let mut stmt = conn.prepare(&sql)
+            .map_err(|e| DuckHubError::database(format!("Failed to prepare statement: {}", e)))?;
+
+        let column_count = stmt.column_count();
+        let column_names: Vec<String> = (0..column_count)
+            .map(|i| {
+                match stmt.column_name(i) {
+                    Ok(name) => name.to_string(),
+                    Err(_) => format!("col_{}", i),
+                }
+            })
+            .collect();
+
+        let rows = stmt.query_map([], |row| {
             let mut map = HashMap::new();
             for (i, column_name) in column_names.iter().enumerate() {
                 // Try to get different types and convert to JSON Value

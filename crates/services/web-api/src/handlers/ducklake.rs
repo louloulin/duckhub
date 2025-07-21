@@ -305,8 +305,8 @@ pub async fn create_snapshot(
         database: database_name,
         table: None,
         description: request.description.clone(),
-        include_all_tables: request.include_all_tables,
-        tables: request.tables.clone(),
+        include_all_tables: request.include_all_tables.unwrap_or(false),
+        tables: request.tables.clone().unwrap_or_default(),
     };
 
     match app_state.engine.create_ducklake_snapshot(create_request).await {

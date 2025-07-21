@@ -557,7 +557,7 @@ async fn run_benchmark(engine: Arc<DuckDBEngine>, count: u32, concurrency: u32) 
     println!();
 
     let start_time = std::time::Instant::now();
-    let mut handles = Vec::new();
+    let mut handles: Vec<tokio::task::JoinHandle<Result<()>>> = Vec::new();
 
     let queries_per_task = count / concurrency;
     
