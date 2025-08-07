@@ -224,32 +224,7 @@ impl DuckLakeManager {
         sql_parts.join(" ")
     }
 
-    /// Detach a DuckLake database
-    pub async fn detach_database(&mut self, name: &str) -> Result<()> {
-        info!("Detaching DuckLake database: {}", name);
 
-        let detach_sql = format!("DETACH {}", name);
-        
-        match self.connection.execute(&detach_sql, &[]).await {
-            Ok(_) => {
-                info!("Successfully detached DuckLake database: {}", name);
-                
-                // Remove from attached databases
-                let mut databases = self.attached_databases.lock().await;
-                databases.remove(name);
-                
-                // Update metrics
-                self.metrics.attached_databases_count.set(databases.len() as f64);
-                
-                Ok(())
-            }
-            Err(e) => {
-                error!("Failed to detach DuckLake database {}: {}", name, e);
-                self.metrics.query_errors.inc();
-                Err(e)
-            }
-        }
-    }
 
     /// Get list of attached databases
     pub async fn get_attached_databases(&self) -> Vec<DuckLakeDatabase> {
@@ -708,6 +683,109 @@ impl DuckLakeManager {
         info!("Snapshot data export completed for: {}", snapshot_id);
 
         Ok(())
+    }
+
+    /// Delete a snapshot
+    pub async fn delete_snapshot(&self, snapshot_id: &str) -> Result<()> {
+        info!("删除快照: {}", snapshot_id);
+
+        // 删除快照元数据
+        let delete_sql = "DELETE FROM ducklake_snapshot WHERE snapshot_id = ?";
+
+        match self.connection.execute(delete_sql, &[&snapshot_id]).await {
+            Ok(rows_affected) => {
+                if rows_affected > 0 {
+                    info!("快照 {} 删除成功，影响行数: {}", snapshot_id, rows_affected);
+
+                    // 更新指标 - 记录删除操作
+                    // 注意：Counter只能增加，不能减少，所以我们不修改snapshots_created计数器
+
+                    // 清理相关的数据文件（可选）
+                    let snapshot_dir = format!("data/snapshots/{}", snapshot_id);
+                    if let Err(e) = std::fs::remove_dir_all(&snapshot_dir) {
+                        warn!("清理快照目录失败 {}: {}", snapshot_dir, e);
+                    }
+
+                    Ok(())
+                } else {
+                    Err(DuckHubError::database(format!("快照 {} 不存在", snapshot_id)))
+                }
+            }
+            Err(e) => {
+                error!("删除快照失败: {}", e);
+                self.metrics.query_errors.inc();
+                Err(e)
+            }
+        }
+    }
+
+    /// Connect to a database (实际上是重新附加数据库)
+    pub async fn connect_database(&self, database_id: &str) -> Result<()> {
+        info!("连接数据库: {}", database_id);
+
+        // 查找数据库信息
+        let query_sql = "SELECT name, config FROM ducklake_database WHERE name = ?";
+
+        match self.connection.query_row(query_sql, &[&database_id], |row| {
+            let name: String = row.get(0)?;
+            let config_str: String = row.get(1)?;
+            Ok((name, config_str))
+        }).await {
+            Ok((name, config_str)) => {
+                // 解析配置
+                let config: serde_json::Value = serde_json::from_str(&config_str)
+                    .map_err(|e| DuckHubError::database(format!("解析数据库配置失败: {}", e)))?;
+
+                let metadata_path = config.get("metadata_path")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(":memory:");
+
+                // 重新附加数据库
+                let attach_sql = format!("ATTACH '{}' AS {}", metadata_path, name);
+
+                match self.connection.execute(&attach_sql, &[]).await {
+                    Ok(_) => {
+                        info!("数据库 {} 连接成功", name);
+                        Ok(())
+                    }
+                    Err(e) => {
+                        error!("连接数据库失败: {}", e);
+                        Err(e)
+                    }
+                }
+            }
+            Err(e) => {
+                error!("查询数据库信息失败: {}", e);
+                Err(e)
+            }
+        }
+    }
+
+    /// Detach a database
+    pub async fn detach_database(&self, database_id: &str) -> Result<()> {
+        info!("分离数据库: {}", database_id);
+
+        let detach_sql = format!("DETACH {}", database_id);
+
+        match self.connection.execute(&detach_sql, &[]).await {
+            Ok(_) => {
+                info!("数据库 {} 分离成功", database_id);
+
+                // 从附加数据库列表中移除
+                let mut databases = self.attached_databases.lock().await;
+                databases.remove(database_id);
+
+                // 更新指标
+                self.metrics.attached_databases_count.set(databases.len() as f64);
+
+                Ok(())
+            }
+            Err(e) => {
+                error!("分离数据库失败: {}", e);
+                self.metrics.query_errors.inc();
+                Err(e)
+            }
+        }
     }
 }
 

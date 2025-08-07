@@ -485,6 +485,83 @@ pub async fn create_database(
     }
 }
 
+/// 删除快照
+#[instrument(skip(app_state))]
+pub async fn delete_snapshot(
+    app_state: web::Data<AppState>,
+    path: web::Path<String>,
+) -> ActixResult<HttpResponse> {
+    let snapshot_id = path.into_inner();
+    info!("删除快照: {}", snapshot_id);
+
+    // 使用真实的 DuckLake 管理器删除快照
+    match app_state.engine.delete_ducklake_snapshot(&snapshot_id).await {
+        Ok(_) => {
+            info!("快照 {} 删除成功", snapshot_id);
+            Ok(success_response(json!({
+                "message": "快照删除成功",
+                "snapshot_id": snapshot_id
+            })))
+        }
+        Err(e) => {
+            error!("删除快照失败: {}", e);
+            Ok(error_response(&format!("删除快照失败: {}", e), 500))
+        }
+    }
+}
+
+/// 连接数据库
+#[instrument(skip(app_state))]
+pub async fn connect_database(
+    app_state: web::Data<AppState>,
+    path: web::Path<String>,
+) -> ActixResult<HttpResponse> {
+    let database_id = path.into_inner();
+    info!("连接数据库: {}", database_id);
+
+    // 使用真实的 DuckLake 管理器连接数据库
+    match app_state.engine.connect_ducklake_database(&database_id).await {
+        Ok(_) => {
+            info!("数据库 {} 连接成功", database_id);
+            Ok(success_response(json!({
+                "message": "数据库连接成功",
+                "database_id": database_id,
+                "status": "connected"
+            })))
+        }
+        Err(e) => {
+            error!("连接数据库失败: {}", e);
+            Ok(error_response(&format!("连接数据库失败: {}", e), 500))
+        }
+    }
+}
+
+/// 分离数据库
+#[instrument(skip(app_state))]
+pub async fn detach_database(
+    app_state: web::Data<AppState>,
+    path: web::Path<String>,
+) -> ActixResult<HttpResponse> {
+    let database_id = path.into_inner();
+    info!("分离数据库: {}", database_id);
+
+    // 使用真实的 DuckLake 管理器分离数据库
+    match app_state.engine.detach_ducklake_database(&database_id).await {
+        Ok(_) => {
+            info!("数据库 {} 分离成功", database_id);
+            Ok(success_response(json!({
+                "message": "数据库分离成功",
+                "database_id": database_id,
+                "status": "detached"
+            })))
+        }
+        Err(e) => {
+            error!("分离数据库失败: {}", e);
+            Ok(error_response(&format!("分离数据库失败: {}", e), 500))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

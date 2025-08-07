@@ -105,7 +105,7 @@ export default function SnapshotBrowser() {
     database: 'financial_data',
   })
 
-  // 模拟数据加载
+  // 数据加载
   useEffect(() => {
     const loadSnapshots = async () => {
       setLoading(true)
@@ -209,33 +209,81 @@ export default function SnapshotBrowser() {
   const handleCreateSnapshot = async () => {
     if (!newSnapshot.description) return
 
-    const snapshot: Snapshot = {
-      id: Date.now().toString(),
-      version: Math.max(...snapshots.map(s => s.version)) + 1,
-      timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      database: newSnapshot.database,
-      size: '0 MB',
-      tables: 0,
-      description: newSnapshot.description,
-      tags: newSnapshot.tags.split(',').map(t => t.trim()).filter(Boolean),
-      changes: 0,
-      author: 'current_user',
-      type: 'manual',
-      checksum: `sha256:${Math.random().toString(36).substring(2)}...`,
-      metadata: {
-        rowCount: 0,
-        schemaVersion: 1,
-        compressionRatio: 1.0,
-      },
-    }
+    try {
+      setLoading(true)
 
-    setSnapshots(prev => [snapshot, ...prev])
-    setNewSnapshot({ description: '', tags: '', database: 'financial_data' })
-    setShowCreateDialog(false)
+      // 调用真实的API创建快照
+      const response = await fetch(`/api/v1/ducklake/databases/${newSnapshot.database}/snapshots`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          description: newSnapshot.description,
+          tables: newSnapshot.tags.split(',').map(t => t.trim()).filter(Boolean),
+          include_all_tables: false,
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          // 重新加载快照列表以获取最新数据
+          const listResponse = await fetch(`/api/v1/ducklake/databases/${newSnapshot.database}/snapshots`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            },
+          })
+
+          if (listResponse.ok) {
+            const listData = await listResponse.json()
+            setSnapshots(listData.data || [])
+          }
+
+          setNewSnapshot({ description: '', tags: '', database: 'financial_data' })
+          setShowCreateDialog(false)
+        } else {
+          console.error('创建快照失败:', result.message)
+        }
+      } else {
+        console.error('创建快照请求失败:', response.status)
+      }
+    } catch (error) {
+      console.error('创建快照时出错:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleDeleteSnapshot = (id: string) => {
-    setSnapshots(prev => prev.filter(s => s.id !== id))
+  const handleDeleteSnapshot = async (id: string) => {
+    try {
+      setLoading(true)
+
+      // 调用真实的API删除快照
+      const response = await fetch(`/api/v1/ducklake/snapshots/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          // 从本地状态中移除已删除的快照
+          setSnapshots(prev => prev.filter(s => s.id !== id))
+        } else {
+          console.error('删除快照失败:', result.message)
+        }
+      } else {
+        console.error('删除快照请求失败:', response.status)
+      }
+    } catch (error) {
+      console.error('删除快照时出错:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleCompareSnapshots = async () => {

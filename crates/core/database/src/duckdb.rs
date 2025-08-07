@@ -181,6 +181,30 @@ impl DuckDBEngine {
         }
     }
 
+    /// Delete a DuckLake snapshot using the real manager
+    pub async fn delete_ducklake_snapshot(&self, snapshot_id: &str) -> Result<()> {
+        match &self.ducklake_manager {
+            Some(manager) => manager.delete_snapshot(snapshot_id).await,
+            None => Err(DuckHubError::database("DuckLake manager not available".to_string()))
+        }
+    }
+
+    /// Connect to a DuckLake database using the real manager
+    pub async fn connect_ducklake_database(&self, database_id: &str) -> Result<()> {
+        match &self.ducklake_manager {
+            Some(manager) => manager.connect_database(database_id).await,
+            None => Err(DuckHubError::database("DuckLake manager not available".to_string()))
+        }
+    }
+
+    /// Detach a DuckLake database using the real manager
+    pub async fn detach_ducklake_database(&self, database_id: &str) -> Result<()> {
+        match &self.ducklake_manager {
+            Some(manager) => manager.detach_database(database_id).await,
+            None => Err(DuckHubError::database("DuckLake manager not available".to_string()))
+        }
+    }
+
     /// Execute time travel query using the real manager
     pub async fn execute_ducklake_time_travel(&self, request: crate::ducklake_real::TimeTravelQueryRequest) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         match &self.ducklake_manager {

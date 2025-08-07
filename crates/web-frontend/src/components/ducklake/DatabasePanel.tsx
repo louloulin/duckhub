@@ -70,21 +70,21 @@ export default function DatabasePanel() {
   })
 
   // 加载数据库列表
-  useEffect(() => {
-    const loadDatabases = async () => {
-      setLoading(true)
-      try {
-        const response = await duckLakeAPI.getDatabases()
-        setDatabases(response.data.data || [])
-      } catch (error) {
-        console.error('加载数据库列表时出错:', error)
-        // 显示错误状态，不使用mock数据
-        setDatabases([])
-      } finally {
-        setLoading(false)
-      }
+  const loadDatabases = async () => {
+    setLoading(true)
+    try {
+      const response = await duckLakeAPI.getDatabases()
+      setDatabases(response.data.data || [])
+    } catch (error) {
+      console.error('加载数据库列表时出错:', error)
+      // 显示错误状态，不使用mock数据
+      setDatabases([])
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     loadDatabases()
   }, [])
 
@@ -119,34 +119,104 @@ export default function DatabasePanel() {
   const handleAddDatabase = async () => {
     if (!newDatabase.name || !newDatabase.path) return
 
-    // 模拟添加数据库
-    const newDb: DuckLakeDatabase = {
-      id: Date.now().toString(),
-      name: newDatabase.name,
-      path: newDatabase.path,
-      status: 'connected',
-      size: '0 MB',
-      tables: 0,
-      lastAccessed: '刚刚',
-      connections: 0,
-      description: newDatabase.description,
+    try {
+      setLoading(true)
+
+      // 调用真实的API创建数据库
+      const response = await fetch('/api/v1/ducklake/databases', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          name: newDatabase.name,
+          description: newDatabase.description,
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          // 重新加载数据库列表
+          await loadDatabases()
+          setNewDatabase({ name: '', path: '', description: '' })
+          setShowAddDialog(false)
+        } else {
+          console.error('创建数据库失败:', result.message)
+        }
+      } else {
+        console.error('创建数据库请求失败:', response.status)
+      }
+    } catch (error) {
+      console.error('创建数据库时出错:', error)
+    } finally {
+      setLoading(false)
     }
-
-    setDatabases(prev => [...prev, newDb])
-    setNewDatabase({ name: '', path: '', description: '' })
-    setShowAddDialog(false)
   }
 
-  const handleDetachDatabase = (id: string) => {
-    setDatabases(prev => prev.filter(db => db.id !== id))
+  const handleDetachDatabase = async (id: string) => {
+    try {
+      setLoading(true)
+
+      // 调用真实的API分离数据库
+      const response = await fetch(`/api/v1/ducklake/databases/${id}/detach`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          // 从本地状态中移除已分离的数据库
+          setDatabases(prev => prev.filter(db => db.id !== id))
+        } else {
+          console.error('分离数据库失败:', result.message)
+        }
+      } else {
+        console.error('分离数据库请求失败:', response.status)
+      }
+    } catch (error) {
+      console.error('分离数据库时出错:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleConnectDatabase = (id: string) => {
-    setDatabases(prev =>
-      prev.map(db =>
-        db.id === id ? { ...db, status: 'connected' as const } : db
-      )
-    )
+  const handleConnectDatabase = async (id: string) => {
+    try {
+      setLoading(true)
+
+      // 调用真实的API连接数据库
+      const response = await fetch(`/api/v1/ducklake/databases/${id}/connect`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          // 更新本地状态
+          setDatabases(prev =>
+            prev.map(db =>
+              db.id === id ? { ...db, status: 'connected' as const } : db
+            )
+          )
+        } else {
+          console.error('连接数据库失败:', result.message)
+        }
+      } else {
+        console.error('连接数据库请求失败:', response.status)
+      }
+    } catch (error) {
+      console.error('连接数据库时出错:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (loading) {
