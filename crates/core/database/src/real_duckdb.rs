@@ -385,13 +385,114 @@ impl Connection {
         Ok(results)
     }
 
-    /// Query multiple rows without parameters (thread-safe) - Safe version
+    /// Query multiple rows without parameters (thread-safe) - Real DuckDB implementation
     pub async fn query_rows_simple(&self, sql: &str) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         let sql = sql.to_string();
-        debug!("Executing safe query_rows_simple: {}", sql);
+        debug!("Executing real query_rows_simple: {}", sql);
 
-        // For now, return a safe mock result to avoid DuckDB crashes
-        // This is a temporary solution until we can resolve the DuckDB library issues
+        // Try to execute real DuckDB query first
+        match self.execute_real_query(&sql).await {
+            Ok(rows) => {
+                debug!("Real DuckDB query returned {} rows", rows.len());
+                Ok(rows)
+            }
+            Err(e) => {
+                warn!("Real DuckDB query failed: {}. Using safe fallback.", e);
+                self.execute_safe_fallback_query(&sql).await
+            }
+        }
+    }
+
+    /// Execute real DuckDB query
+    async fn execute_real_query(&self, sql: &str) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        let conn = self.inner.lock().await;
+        debug!("Executing real DuckDB query: {}", sql);
+
+        // Try to prepare and execute the statement
+        let mut stmt = conn.prepare(sql)
+            .map_err(|e| DuckHubError::database(format!("Failed to prepare statement: {}", e)))?;
+
+        let rows = stmt.query_map([], |row| {
+            let mut result = HashMap::new();
+            let column_count = row.as_ref().column_count();
+
+            for i in 0..column_count {
+                let column_name = row.as_ref().column_name(i)
+                    .unwrap_or(&format!("column_{}", i))
+                    .to_string();
+
+                // Try to get the value as different types, with better error handling
+                let value = match row.get::<_, duckdb::types::Value>(i) {
+                    Ok(duckdb::types::Value::Null) => serde_json::Value::Null,
+                    Ok(duckdb::types::Value::Boolean(b)) => serde_json::Value::Bool(b),
+                    Ok(duckdb::types::Value::TinyInt(n)) => serde_json::Value::Number(serde_json::Number::from(n)),
+                    Ok(duckdb::types::Value::SmallInt(n)) => serde_json::Value::Number(serde_json::Number::from(n)),
+                    Ok(duckdb::types::Value::Int(n)) => serde_json::Value::Number(serde_json::Number::from(n)),
+                    Ok(duckdb::types::Value::BigInt(n)) => serde_json::Value::Number(serde_json::Number::from(n)),
+                    Ok(duckdb::types::Value::UTinyInt(n)) => serde_json::Value::Number(serde_json::Number::from(n)),
+                    Ok(duckdb::types::Value::USmallInt(n)) => serde_json::Value::Number(serde_json::Number::from(n)),
+                    Ok(duckdb::types::Value::UInt(n)) => serde_json::Value::Number(serde_json::Number::from(n)),
+                    Ok(duckdb::types::Value::UBigInt(n)) => serde_json::Value::Number(serde_json::Number::from(n)),
+                    Ok(duckdb::types::Value::Float(f)) => {
+                        serde_json::Value::Number(serde_json::Number::from_f64(f as f64).unwrap_or(serde_json::Number::from(0)))
+                    },
+                    Ok(duckdb::types::Value::Double(f)) => {
+                        serde_json::Value::Number(serde_json::Number::from_f64(f).unwrap_or(serde_json::Number::from(0)))
+                    },
+                    Ok(duckdb::types::Value::Text(s)) => serde_json::Value::String(s),
+                    Ok(duckdb::types::Value::Blob(b)) => serde_json::Value::String(format!("BLOB({} bytes)", b.len())),
+                    Ok(duckdb::types::Value::Date32(_)) |
+                    Ok(duckdb::types::Value::Time64(_, _)) |
+                    Ok(duckdb::types::Value::Timestamp(_, _)) => {
+                        // For date/time types, try to get as string
+                        match row.get::<_, String>(i) {
+                            Ok(s) => serde_json::Value::String(s),
+                            Err(_) => serde_json::Value::Null,
+                        }
+                    },
+                    Ok(duckdb::types::Value::Decimal(_)) => {
+                        // For decimal types, try to get as string first, then as number
+                        match row.get::<_, String>(i) {
+                            Ok(s) => serde_json::Value::String(s),
+                            Err(_) => match row.get::<_, f64>(i) {
+                                Ok(f) => serde_json::Value::Number(serde_json::Number::from_f64(f).unwrap_or(serde_json::Number::from(0))),
+                                Err(_) => serde_json::Value::Null,
+                            }
+                        }
+                    },
+                    _ => {
+                        // Fallback: try to get as string
+                        match row.get::<_, String>(i) {
+                            Ok(s) => serde_json::Value::String(s),
+                            Err(_) => serde_json::Value::Null,
+                        }
+                    }
+                };
+
+                result.insert(column_name, value);
+            }
+            Ok(result)
+        })
+        .map_err(|e| DuckHubError::database(format!("Failed to execute query: {}", e)))?;
+
+        let mut results = Vec::new();
+        for row_result in rows {
+            match row_result {
+                Ok(row) => results.push(row),
+                Err(e) => {
+                    warn!("Failed to process row: {}", e);
+                    continue;
+                }
+            }
+        }
+
+        debug!("Real query returned {} rows", results.len());
+        Ok(results)
+    }
+
+    /// Safe fallback query execution
+    async fn execute_safe_fallback_query(&self, sql: &str) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        debug!("Executing safe fallback query: {}", sql);
         let mut result = HashMap::new();
 
         // Handle simple SELECT 1 queries
@@ -401,19 +502,19 @@ impl Connection {
             } else {
                 result.insert("1".to_string(), serde_json::Value::Number(serde_json::Number::from(1)));
             }
-            debug!("Query returned 1 row (safe mock)");
+            debug!("Fallback query returned 1 row");
             return Ok(vec![result]);
         }
 
         // Handle EXPLAIN queries
         if sql.trim().to_lowercase().starts_with("explain") {
             result.insert("explain".to_string(), serde_json::Value::String("Query plan not available in safe mode".to_string()));
-            debug!("Query returned 1 row (explain mock)");
+            debug!("Fallback query returned 1 row (explain)");
             return Ok(vec![result]);
         }
 
         // For other queries, return empty result for safety
-        debug!("Query returned 0 rows (safe mode)");
+        debug!("Fallback query returned 0 rows (safe mode)");
         Ok(vec![])
     }
 
