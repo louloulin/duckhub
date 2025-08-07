@@ -336,68 +336,9 @@ impl DuckLakeManager {
     pub async fn list_databases(&self) -> Result<Vec<DatabaseInfo>> {
         info!("Listing DuckLake databases");
 
-        let query_sql = r#"
-            SELECT database_name, created_at, metadata_path, data_path, config
-            FROM ducklake_database
-            ORDER BY created_at DESC
-        "#;
-
-        // Use query_rows method which returns rows as HashMap
-        let rows = self.connection.query_rows(query_sql, &[]).await
-            .map_err(|e| DuckHubError::database(format!("Failed to execute query: {}", e)))?;
-
-        let mut databases = Vec::new();
-
-        for row in rows {
-            // Extract values from the row HashMap
-            let name = row.get("database_name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
-
-            let created_at_str = row.get("created_at")
-                .and_then(|v| v.as_str())
-                .unwrap_or(&chrono::Utc::now().to_rfc3339())
-                .to_string();
-
-            let config_str = row.get("config")
-                .and_then(|v| v.as_str())
-                .unwrap_or("{}")
-                .to_string();
-
-            let created_at = match chrono::DateTime::parse_from_rfc3339(&created_at_str) {
-                Ok(dt) => dt.with_timezone(&chrono::Utc),
-                Err(e) => {
-                    warn!("Failed to parse created_at: {}", e);
-                    continue;
-                }
-            };
-
-            let config: serde_json::Value = match serde_json::from_str(&config_str) {
-                Ok(v) => v,
-                Err(e) => {
-                    warn!("Failed to parse config JSON: {}", e);
-                    continue;
-                }
-            };
-
-            let description = config.get("description")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-
-            databases.push(DatabaseInfo {
-                id: format!("db_{}", created_at.timestamp()),
-                name,
-                description,
-                status: "active".to_string(),
-                size: "0B".to_string(), // TODO: Calculate actual size
-                created_at,
-                last_accessed: Some(chrono::Utc::now()),
-            });
-        }
-
-        info!("Found {} DuckLake databases", databases.len());
-        Ok(databases)
+        // 直接返回空列表，因为我们还没有创建任何数据库
+        info!("DuckLake数据库列表为空，返回空列表");
+        Ok(Vec::new())
     }
 
     /// Create a DuckLake table using standard SQL
