@@ -16,6 +16,7 @@ duckhub-common = { path = "../common" }
 
 # Async
 tokio.workspace = true
+tokio-stream = "0.1"
 async-trait.workspace = true
 
 # Database - Real DuckDB implementation (latest version)
