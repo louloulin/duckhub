@@ -1,1 +1,13 @@
-√@/Users/louloulin/Documents/augment-projects/duckhub/plan7.md 按照计划，搜索ducklake的资料，实现真正的ducklake的duckhub，实现后增加测试验证，验证通过后更新 @/Users/louloulin/Documents/augment-projects/duckhub/plan7.md 标记实现的功能，真实实现，删除mock
+请按照 `/Users/louloulin/Documents/augment-projects/duckhub/plan9.md` 文件中的计划执行以下任务：
+
+1. **研究阶段**：搜索和收集关于 DuckLake 的技术资料和文档，了解其架构、功能和实现方式
+
+2. **实现阶段**：基于研究结果，在 DuckHub 项目中实现真正的 DuckLake 功能，替换当前的模拟（mock）实现
+
+3. **测试验证**：为新实现的功能编写全面的测试用例，确保功能正确性和稳定性
+
+4. **文档更新**：测试验证通过后，更新 `plan9.md` 文件，标记已完成的功能实现状态
+
+5. **代码清理**：删除所有相关的模拟（mock）代码，确保使用真实的实现
+
+请在整个过程中使用中文进行说明和注释，并在每个阶段完成后提供进度报告。
