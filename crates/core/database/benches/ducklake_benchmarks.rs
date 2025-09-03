@@ -3,11 +3,11 @@
 //! 测试DuckLake在金融数据处理场景下的性能表现
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use duckhub_database::*;
-use duckhub_database::ducklake::DuckLakeOperation;
+use duckhub_database::ducklake_real::{DuckLakeManager, DuckLakeConfig};
+use duckhub_database::ducklake_simple::DuckLakeOperation;
 use duckhub_common::prelude::*;
 use duckhub_common::types::{Schema, Field, DataType};
-use crate::duckdb::Connection;
+use duckhub_database::real_duckdb::Connection;
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 

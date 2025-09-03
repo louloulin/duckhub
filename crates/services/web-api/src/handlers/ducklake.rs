@@ -201,15 +201,15 @@ pub async fn time_travel_query(
     info!("执行时间旅行查询，数据库: {}", database_name);
 
     // 使用真实的 DuckLake 管理器执行时间旅行查询
-    let time_travel_request = duckhub_database::ducklake_real::TimeTravelQueryRequest {
+    let time_travel_request = duckhub_common::types::TimeTravelQueryRequest {
         database: database_name,
         table: "".to_string(), // 从SQL中提取表名或使用默认值
         target: match &request.target {
-            TimeTravelTarget::Timestamp(ts) => duckhub_database::ducklake_real::TimeTravelTarget::Timestamp(*ts),
-            TimeTravelTarget::Snapshot(id) => duckhub_database::ducklake_real::TimeTravelTarget::Version(id.parse().unwrap_or(0)),
-            TimeTravelTarget::Version(v) => duckhub_database::ducklake_real::TimeTravelTarget::Version(*v),
+            TimeTravelTarget::Timestamp(ts) => duckhub_common::types::TimeTravelTarget::Timestamp(*ts),
+            TimeTravelTarget::Snapshot(id) => duckhub_common::types::TimeTravelTarget::Version(id.parse().unwrap_or(0)),
+            TimeTravelTarget::Version(v) => duckhub_common::types::TimeTravelTarget::Version(*v),
         },
-        sql: Some(request.sql.clone()),
+        sql: request.sql.clone(),
     };
 
     match app_state.engine.execute_ducklake_time_travel(time_travel_request).await {

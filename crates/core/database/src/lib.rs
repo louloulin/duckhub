@@ -8,7 +8,7 @@
 //! - Caching layer
 
 pub mod duckdb;
-mod real_duckdb;
+pub mod real_duckdb;
 pub mod ducklake_real;  // New real DuckLake implementation
 pub mod stream_processor;  // Enhanced stream processing engine
 pub mod risk_engine;  // Real-time risk monitoring engine

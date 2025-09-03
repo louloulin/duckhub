@@ -206,7 +206,7 @@ impl DuckDBEngine {
     }
 
     /// Execute time travel query using the real manager
-    pub async fn execute_ducklake_time_travel(&self, request: crate::ducklake_real::TimeTravelQueryRequest) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+    pub async fn execute_ducklake_time_travel(&self, request: TimeTravelQueryRequest) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         match &self.ducklake_manager {
             Some(manager) => manager.time_travel_query(request).await,
             None => Err(DuckHubError::database("DuckLake manager not available".to_string()))
@@ -218,167 +218,67 @@ impl DuckDBEngine {
         if let Some(ref manager) = self.ducklake_manager {
             manager.list_databases().await
         } else {
-            // Fallback to mock implementation if DuckLake manager is not available
-            Ok(vec![
-                DatabaseInfo {
-                    id: "db1".to_string(),
-                    name: "financial_data".to_string(),
-                    description: Some("Financial data warehouse".to_string()),
-                    status: "active".to_string(),
-                    size: "2.5GB".to_string(),
-                    created_at: chrono::Utc::now() - chrono::Duration::days(30),
-                    last_accessed: Some(chrono::Utc::now() - chrono::Duration::hours(1)),
-                },
-                DatabaseInfo {
-                    id: "db2".to_string(),
-                    name: "user_analytics".to_string(),
-                    description: Some("User behavior analytics".to_string()),
-                    status: "active".to_string(),
-                    size: "1.8GB".to_string(),
-                    created_at: chrono::Utc::now() - chrono::Duration::days(15),
-                    last_accessed: Some(chrono::Utc::now() - chrono::Duration::hours(2)),
-                },
-            ])
+            Err(DuckHubError::database("DuckLake manager not available".to_string()))
         }
     }
 
     /// List snapshots for a database
-    pub async fn list_snapshots(&self, _database_name: &str) -> Result<Vec<SnapshotInfo>> {
-        // Mock implementation - return sample snapshots
-        Ok(vec![
-            SnapshotInfo {
-                id: "snap1".to_string(),
-                version: 126,
-                created_at: chrono::Utc::now() - chrono::Duration::hours(4),
-                size: "1.2GB".to_string(),
-                description: Some("Daily backup".to_string()),
-                size_bytes: 1024 * 1024 * 1024 + 200 * 1024 * 1024, // 1.2GB
-                table_count: 2,
-                compression_ratio: 0.75,
-                checksum: "sha256:abc123def456".to_string(),
-            },
-            SnapshotInfo {
-                id: "snap2".to_string(),
-                version: 125,
-                created_at: chrono::Utc::now() - chrono::Duration::hours(28),
-                size: "1.1GB".to_string(),
-                description: Some("Pre-migration backup".to_string()),
-                size_bytes: 1024 * 1024 * 1024 + 100 * 1024 * 1024, // 1.1GB
-                table_count: 2,
-                compression_ratio: 0.78,
-                checksum: "sha256:def456ghi789".to_string(),
-            },
-        ])
+    pub async fn list_snapshots(&self, database_name: &str) -> Result<Vec<SnapshotInfo>> {
+        if let Some(ref manager) = self.ducklake_manager {
+            // Convert from DuckLake snapshots to SnapshotInfo
+            let snapshots = manager.list_snapshots(database_name).await?;
+            Ok(snapshots.into_iter().enumerate().map(|(i, s)| {
+                let checksum = format!("sha256:{}", s.id); // Generate checksum before moving
+                SnapshotInfo {
+                    id: s.id,
+                    version: (i + 1) as u64, // Generate version number
+                    created_at: s.created_at,
+                    size: format!("{:.2}MB", s.size_bytes as f64 / (1024.0 * 1024.0)),
+                    description: s.description,
+                    size_bytes: s.size_bytes,
+                    table_count: s.table_count,
+                    compression_ratio: 0.75, // Default compression ratio
+                    checksum,
+                }
+            }).collect())
+        } else {
+            Err(DuckHubError::database("DuckLake manager not available".to_string()))
+        }
     }
 
     /// Execute time travel query
     pub async fn execute_time_travel_query(&self, request: TimeTravelQueryRequest) -> Result<TimeTravelQueryResponse> {
-        // Mock implementation
-        Ok(TimeTravelQueryResponse {
-            query_id: format!("tt_{}", chrono::Utc::now().timestamp()),
-            execution_time_ms: 150,
-            row_count: 1250,
-            results: vec![
-                serde_json::json!({
-                    "id": 1,
-                    "amount": 1500.00,
-                    "user_id": "user123",
-                    "timestamp": "2024-01-10T15:30:00Z"
-                }),
-                serde_json::json!({
-                    "id": 2,
-                    "amount": 2200.50,
-                    "user_id": "user456",
-                    "timestamp": "2024-01-10T16:45:00Z"
-                }),
-            ],
-        })
+        if let Some(ref manager) = self.ducklake_manager {
+            let start_time = std::time::Instant::now();
+            let results = manager.time_travel_query(request).await?;
+            let execution_time_ms = start_time.elapsed().as_millis() as u64;
+
+            // Convert HashMap results to serde_json::Value
+            let json_results: Vec<serde_json::Value> = results.into_iter()
+                .map(|row| serde_json::Value::Object(row.into_iter().collect()))
+                .collect();
+
+            Ok(TimeTravelQueryResponse {
+                query_id: format!("tt_{}", chrono::Utc::now().timestamp()),
+                execution_time_ms,
+                row_count: json_results.len(),
+                results: json_results,
+            })
+        } else {
+            Err(DuckHubError::database("DuckLake manager not available".to_string()))
+        }
     }
 
     /// Get database schema
-    pub async fn get_schema(&self, _database_name: &str) -> Result<SchemaInfo> {
-        // Mock implementation
-        Ok(SchemaInfo {
-            tables: vec![
-                TableInfo {
-                    name: "transactions".to_string(),
-                    columns: vec![
-                        ColumnInfo {
-                            name: "id".to_string(),
-                            data_type: "INTEGER".to_string(),
-                            nullable: false,
-                            default_value: None,
-                            comment: Some("主键ID".to_string()),
-                            is_primary_key: true,
-                            is_foreign_key: false,
-                            max_length: None,
-                        },
-                        ColumnInfo {
-                            name: "amount".to_string(),
-                            data_type: "DECIMAL".to_string(),
-                            nullable: false,
-                            default_value: None,
-                            comment: Some("交易金额".to_string()),
-                            is_primary_key: false,
-                            is_foreign_key: false,
-                            max_length: None,
-                        },
-                        ColumnInfo {
-                            name: "user_id".to_string(),
-                            data_type: "VARCHAR".to_string(),
-                            nullable: false,
-                            default_value: None,
-                            comment: Some("用户ID".to_string()),
-                            is_primary_key: false,
-                            is_foreign_key: true,
-                            max_length: Some(50),
-                        },
-                    ],
-                    row_count: 1500,
-                    size_bytes: 1024 * 1024 * 2, // 2MB
-                    created_at: chrono::Utc::now() - chrono::Duration::days(30),
-                    last_updated: chrono::Utc::now() - chrono::Duration::hours(1),
-                    table_type: "BASE TABLE".to_string(),
-                    engine: "DuckDB".to_string(),
-                },
-                TableInfo {
-                    name: "users".to_string(),
-                    columns: vec![
-                        ColumnInfo {
-                            name: "id".to_string(),
-                            data_type: "VARCHAR".to_string(),
-                            nullable: false,
-                            default_value: None,
-                            comment: Some("用户主键ID".to_string()),
-                            is_primary_key: true,
-                            is_foreign_key: false,
-                            max_length: Some(50),
-                        },
-                        ColumnInfo {
-                            name: "name".to_string(),
-                            data_type: "VARCHAR".to_string(),
-                            nullable: false,
-                            default_value: None,
-                            comment: Some("用户姓名".to_string()),
-                            is_primary_key: false,
-                            is_foreign_key: false,
-                            max_length: Some(100),
-                        },
-                    ],
-                    row_count: 500,
-                    size_bytes: 1024 * 512, // 512KB
-                    created_at: chrono::Utc::now() - chrono::Duration::days(60),
-                    last_updated: chrono::Utc::now() - chrono::Duration::hours(2),
-                    table_type: "BASE TABLE".to_string(),
-                    engine: "DuckDB".to_string(),
-                },
-            ],
-            version: 126,
-            last_updated: chrono::Utc::now(),
-            database_name: "financial_data".to_string(),
-            total_tables: 2,
-            total_size_bytes: 1024 * 1024 * 2 + 1024 * 512, // 2.5MB total
-        })
+    pub async fn get_schema(&self, database_name: &str) -> Result<SchemaInfo> {
+        if let Some(ref manager) = self.ducklake_manager {
+            // Use DuckLakeManager to get schema information
+            // This is a simplified implementation - in a real scenario,
+            // we would implement a proper schema introspection method
+            Err(DuckHubError::database("Schema introspection not yet implemented in DuckLake manager".to_string()))
+        } else {
+            Err(DuckHubError::database("DuckLake manager not available".to_string()))
+        }
     }
 
     /// Create DuckLake database
@@ -386,33 +286,19 @@ impl DuckDBEngine {
         if let Some(ref manager) = self.ducklake_manager {
             manager.create_database(name, description).await
         } else {
-            // Fallback to mock implementation if DuckLake manager is not available
-            Ok(DatabaseInfo {
-                id: format!("db_{}", chrono::Utc::now().timestamp()),
-                name: name.to_string(),
-                description: description.map(|s| s.to_string()),
-                status: "active".to_string(),
-                size: "0B".to_string(),
-                created_at: chrono::Utc::now(),
-                last_accessed: Some(chrono::Utc::now()),
-            })
+            Err(DuckHubError::database("DuckLake manager not available".to_string()))
         }
     }
 
     /// Create snapshot
     pub async fn create_snapshot(&self, request: CreateSnapshotRequest) -> Result<SnapshotInfo> {
-        // Mock implementation
-        Ok(SnapshotInfo {
-            id: format!("snap_{}", chrono::Utc::now().timestamp()),
-            version: 127,
-            created_at: chrono::Utc::now(),
-            size: "1.3GB".to_string(),
-            description: request.description,
-            size_bytes: 1024 * 1024 * 1024 + 300 * 1024 * 1024, // 1.3GB
-            table_count: 2,
-            compression_ratio: 0.72,
-            checksum: format!("sha256:{}", chrono::Utc::now().timestamp()),
-        })
+        if let Some(ref manager) = self.ducklake_manager {
+            // Use DuckLakeManager to create snapshot
+            // This would need to be implemented in the real DuckLakeManager
+            Err(DuckHubError::database("Snapshot creation not yet implemented in DuckLake manager".to_string()))
+        } else {
+            Err(DuckHubError::database("DuckLake manager not available".to_string()))
+        }
     }
 }
 

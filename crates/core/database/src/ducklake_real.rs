@@ -669,6 +669,12 @@ impl DuckLakeManager {
                 format!("SELECT * FROM {}.{} AT (TIMESTAMP => '{}')",
                        request.database, request.table, timestamp_str)
             }
+            TimeTravelTarget::TimeRange { start, end } => {
+                let start_str = start.format("%Y-%m-%d %H:%M:%S%.3f%z");
+                let end_str = end.format("%Y-%m-%d %H:%M:%S%.3f%z");
+                format!("SELECT * FROM {}.{} WHERE _timestamp BETWEEN '{}' AND '{}'",
+                    request.database, request.table, start_str, end_str)
+            }
         };
 
         info!("Executing DuckLake time travel SQL: {}", sql);
@@ -688,6 +694,10 @@ impl DuckLakeManager {
             }
             TimeTravelTarget::Timestamp(timestamp) => {
                 self.find_snapshot_by_timestamp(&request.database, *timestamp).await?
+            }
+            TimeTravelTarget::TimeRange { start, .. } => {
+                // For time range, use the start timestamp to find the closest snapshot
+                self.find_snapshot_by_timestamp(&request.database, *start).await?
             }
         };
 
@@ -1052,16 +1062,4 @@ pub struct Snapshot {
     pub table_count: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TimeTravelQueryRequest {
-    pub database: String,
-    pub table: String,
-    pub target: TimeTravelTarget,
-    pub sql: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum TimeTravelTarget {
-    Version(u64),
-    Timestamp(DateTime<Utc>),
-}
+// TimeTravelQueryRequest and TimeTravelTarget are now imported from duckhub_common::types

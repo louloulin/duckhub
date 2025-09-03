@@ -3,21 +3,22 @@
 //! 测试DuckLake的ACID事务特性、时间旅行查询、Schema演进等核心功能
 
 use duckhub_database::*;
-use duckhub_database::ducklake::DuckLakeOperation;
+use duckhub_database::ducklake_real::{DuckLakeManager, DuckLakeConfig};
+use duckhub_database::ducklake_simple::DuckLakeOperation;
 use duckhub_common::prelude::*;
 use duckhub_common::types::{Schema, Field, DataType};
-use crate::duckdb::Connection;
+use duckhub_database::real_duckdb::Connection;
 use std::collections::HashMap;
 
 /// 创建测试用的DuckLake管理器
 async fn create_test_manager() -> DuckLakeManager {
     let conn = Connection::open_in_memory().unwrap();
-    
+
     // 尝试安装DuckLake扩展（如果可用）
     let _ = conn.execute("INSTALL ducklake", &[] as &[&str]);
     let _ = conn.execute("LOAD ducklake", &[] as &[&str]);
-    
-    DuckLakeManager::new(conn)
+
+    DuckLakeManager::new(conn).await.unwrap()
 }
 
 /// 创建测试用的DuckLake配置
