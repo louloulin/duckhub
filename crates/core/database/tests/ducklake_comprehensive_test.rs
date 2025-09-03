@@ -15,7 +15,7 @@ use tokio::time::sleep;
 
 use duckhub_database::{
     DuckLakeManager, DuckLakeConfig, Connection,
-    ducklake_simple::{SnapshotInfo, TimeTravelQueryRequest, TimeTravelTarget}
+    ducklake_simple::SnapshotInfo
 };
 use duckhub_common::prelude::*;
 
@@ -35,9 +35,12 @@ mod comprehensive_tests {
             metadata_path: ":memory:".to_string(),
             data_path: Some("test_data/".to_string()),
             metadata_schema: Some("test_schema".to_string()),
+            metadata_catalog: Some("test_catalog".to_string()),
             encrypted: false,
+            data_inlining_row_limit: 1000,
             read_only: false,
             snapshot_version: None,
+            snapshot_time: None,
             metadata_parameters: HashMap::new(),
         }
     }
@@ -103,18 +106,22 @@ mod comprehensive_tests {
         
         let manager = create_test_manager().await.expect("创建管理器失败");
         
-        // 创建测试表和数据
-        let setup_sql = r#"
+        // 创建测试表
+        let create_table_sql = r#"
             CREATE TABLE IF NOT EXISTS snapshot_test (
                 id INTEGER,
                 value TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            INSERT INTO snapshot_test (id, value) VALUES (1, 'initial_value');
+            )
         "#;
-        
-        let result = manager.execute_query("test_db", setup_sql).await;
-        assert!(result.is_ok(), "设置测试数据应该成功");
+
+        let result = manager.execute_query("test_db", create_table_sql).await;
+        assert!(result.is_ok(), "创建测试表应该成功");
+
+        // 插入测试数据
+        let insert_sql = "INSERT INTO snapshot_test (id, value) VALUES (1, 'initial_value')";
+        let result = manager.execute_query("test_db", insert_sql).await;
+        assert!(result.is_ok(), "插入测试数据应该成功");
         
         // 创建快照
         let snapshot_info = SnapshotInfo {
@@ -181,23 +188,21 @@ mod comprehensive_tests {
             database: "test_db".to_string(),
             table: "time_travel_test".to_string(),
             target: TimeTravelTarget::Version(2),
-            columns: Some(vec!["id".to_string(), "value".to_string()]),
-            conditions: None,
+            sql: "SELECT id, value FROM time_travel_test".to_string(),
         };
-        
+
         // 验证查询请求结构
         assert_eq!(version_query.database, "test_db");
         assert_eq!(version_query.table, "time_travel_test");
-        
+
         // 测试时间戳查询
         let timestamp_query = TimeTravelQueryRequest {
             database: "test_db".to_string(),
             table: "time_travel_test".to_string(),
             target: TimeTravelTarget::Timestamp(Utc::now()),
-            columns: None,
-            conditions: Some("id = 1".to_string()),
+            sql: "SELECT * FROM time_travel_test WHERE id = 1".to_string(),
         };
-        
+
         assert!(matches!(timestamp_query.target, TimeTravelTarget::Timestamp(_)));
         
         println!("✅ 时间旅行查询功能测试通过");
@@ -299,9 +304,12 @@ mod comprehensive_tests {
             metadata_path: "encrypted.ducklake".to_string(),
             data_path: Some("s3://encrypted-bucket/".to_string()),
             metadata_schema: Some("encrypted_schema".to_string()),
+            metadata_catalog: Some("encrypted_catalog".to_string()),
             encrypted: true,
+            data_inlining_row_limit: 500,
             read_only: false,
             snapshot_version: Some(10),
+            snapshot_time: None,
             metadata_parameters: {
                 let mut params = HashMap::new();
                 params.insert("encryption_key".to_string(), "test_key".to_string());
@@ -343,7 +351,7 @@ mod comprehensive_tests {
 
         // 演进1: 添加新列
         let add_column_sql = "ALTER TABLE evolving_table ADD COLUMN email VARCHAR(255)";
-        let result = manager.execute_query("test_db", add_column_sql).await;
+        let _result = manager.execute_query("test_db", add_column_sql).await;
         // 注意：某些数据库可能不支持 ALTER TABLE，这里我们测试结构
 
         // 演进2: 创建新版本的表（模拟 Schema 演进）
@@ -534,7 +542,7 @@ mod comprehensive_tests {
             let value = (i as f64) * 10.5;
 
             let insert_sql = format!(
-                "INSERT INTO optimization_test (id, category, value, status, created_date) VALUES ({}, '{}', {}, '{}', '2024-01-{:02d}')",
+                "INSERT INTO optimization_test (id, category, value, status, created_date) VALUES ({}, '{}', {}, '{}', '2024-01-{:02}')",
                 i, category, value, status, (i % 28) + 1
             );
 
