@@ -2,7 +2,9 @@
 //! 
 //! Tests the DuckLake architecture and API design without requiring actual DuckDB
 
-use duckhub_database::ducklake_simple::*;
+use duckhub_database::ducklake_simple::{
+    DuckLakeConfig, DuckLakeManager, SnapshotInfo as DuckLakeSnapshotInfo
+};
 use duckhub_common::prelude::*;
 use std::collections::HashMap;
 
@@ -146,7 +148,7 @@ fn test_time_travel_query_types() {
 fn test_time_travel_query_result() {
     println!("🧪 Testing time travel query result structure...");
     
-    let snapshot_info = SnapshotInfo {
+    let snapshot_info = DuckLakeSnapshotInfo {
         version: 10,
         timestamp: chrono::Utc::now(),
         operation: "INSERT".to_string(),

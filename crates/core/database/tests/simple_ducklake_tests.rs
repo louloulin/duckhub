@@ -3,7 +3,7 @@
 //! Tests only the simplified DuckLake functionality without complex dependencies
 
 use duckhub_database::ducklake_simple::*;
-use duckhub_database::real_duckdb::Connection;
+use duckhub_database::Connection;
 use duckhub_common::prelude::*;
 use std::collections::HashMap;
 

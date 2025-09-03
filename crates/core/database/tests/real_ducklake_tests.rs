@@ -3,10 +3,8 @@
 //! Tests the actual DuckLake functionality with real database connections
 
 use duckhub_database::ducklake_simple::*;
-use duckhub_database::real_duckdb::Connection;
-use std::collections::HashMap;
+use duckhub_database::Connection;
 use duckhub_common::prelude::*;
-use std::collections::HashMap;
 
 /// Create a test DuckLake manager
 async fn create_test_manager() -> Result<DuckLakeManager> {
