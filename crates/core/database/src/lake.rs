@@ -321,183 +321,28 @@ impl Default for DataLakeManager {
 pub mod providers {
     use super::*;
 
-    // Mock AWS SDK types for compilation
-    pub mod mock_aws {
-        use duckhub_common::prelude::*;
+    // TODO: 集成真实的 AWS SDK
+    // 当前暂时禁用 AWS 功能，等待真实 AWS SDK 集成
+    // 参考: https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/
 
-        pub struct Client;
+    // AWS SDK 集成将在后续版本中实现
+    // 当前专注于 DuckLake 核心功能
 
-        impl Client {
-            pub fn new(_config: &Config) -> Self {
-                Client
-            }
 
-            pub fn put_object(&self) -> PutObjectFluentBuilder {
-                PutObjectFluentBuilder
-            }
 
-            pub fn get_object(&self) -> GetObjectFluentBuilder {
-                GetObjectFluentBuilder
-            }
-
-            pub fn delete_object(&self) -> DeleteObjectFluentBuilder {
-                DeleteObjectFluentBuilder
-            }
-
-            pub fn list_objects_v2(&self) -> ListObjectsV2FluentBuilder {
-                ListObjectsV2FluentBuilder
-            }
-
-            pub fn head_object(&self) -> HeadObjectFluentBuilder {
-                HeadObjectFluentBuilder
-            }
-        }
-
-        pub struct Config;
-
-        pub async fn load_from_env() -> Config {
-            Config
-        }
-
-        pub struct PutObjectFluentBuilder;
-        pub struct GetObjectFluentBuilder;
-        pub struct DeleteObjectFluentBuilder;
-        pub struct ListObjectsV2FluentBuilder;
-        pub struct HeadObjectFluentBuilder;
-
-        impl PutObjectFluentBuilder {
-            pub fn bucket(self, _bucket: &str) -> Self {
-                self
-            }
-
-            pub fn key(self, _key: &str) -> Self {
-                self
-            }
-
-            pub fn body(self, _body: ByteStream) -> Self {
-                self
-            }
-
-            pub async fn send(self) -> Result<()> {
-                Ok(())
-            }
-        }
-
-        impl GetObjectFluentBuilder {
-            pub fn bucket(self, _bucket: &str) -> Self {
-                self
-            }
-
-            pub fn key(self, _key: &str) -> Self {
-                self
-            }
-
-            pub async fn send(self) -> Result<GetObjectOutput> {
-                Ok(GetObjectOutput)
-            }
-        }
-
-        impl DeleteObjectFluentBuilder {
-            pub fn bucket(self, _bucket: &str) -> Self {
-                self
-            }
-
-            pub fn key(self, _key: &str) -> Self {
-                self
-            }
-
-            pub async fn send(self) -> Result<()> {
-                Ok(())
-            }
-        }
-
-        impl ListObjectsV2FluentBuilder {
-            pub fn bucket(self, _bucket: &str) -> Self {
-                self
-            }
-
-            pub fn prefix(self, _prefix: &str) -> Self {
-                self
-            }
-
-            pub async fn send(self) -> Result<ListObjectsV2Output> {
-                Ok(ListObjectsV2Output { contents: vec![] })
-            }
-        }
-
-        impl HeadObjectFluentBuilder {
-            pub fn bucket(self, _bucket: &str) -> Self {
-                self
-            }
-
-            pub fn key(self, _key: &str) -> Self {
-                self
-            }
-
-            pub async fn send(self) -> Result<HeadObjectOutput> {
-                Ok(HeadObjectOutput {
-                    content_length: Some(0),
-                    last_modified: None,
-                    content_type: None,
-                    e_tag: None,
-                    metadata: Some(std::collections::HashMap::new()),
-                })
-            }
-        }
-
-        pub struct GetObjectOutput;
-
-        impl GetObjectOutput {
-            pub async fn body(&self) -> ByteStream {
-                ByteStream
-            }
-        }
-
-        pub struct HeadObjectOutput {
-            pub content_length: Option<i64>,
-            pub last_modified: Option<chrono::DateTime<chrono::Utc>>,
-            pub content_type: Option<String>,
-            pub e_tag: Option<String>,
-            pub metadata: Option<std::collections::HashMap<String, String>>,
-        }
-
-        pub struct ListObjectsV2Output {
-            pub contents: Vec<Object>,
-        }
-
-        pub struct Object {
-            pub key: Option<String>,
-            pub size: Option<i64>,
-            pub last_modified: Option<chrono::DateTime<chrono::Utc>>,
-            pub e_tag: Option<String>,
-        }
-
-        pub struct ByteStream;
-
-        impl ByteStream {
-            pub fn from(_data: Vec<u8>) -> Self {
-                ByteStream
-            }
-        }
-
-        pub mod primitives {
-            pub use super::ByteStream;
-        }
-    }
-
-    /// S3-compatible object storage provider
+    /// S3-compatible object storage provider (暂时禁用)
+    /// TODO: 集成真实的 AWS SDK
     pub struct S3Provider {
-        client: mock_aws::Client,
         bucket: String,
     }
 
     impl S3Provider {
         pub async fn new(config: &ObjectStorageConfig) -> Result<Self> {
-            let aws_config = mock_aws::load_from_env().await;
-            let client = mock_aws::Client::new(&aws_config);
+            // TODO: 集成真实的 AWS SDK
+            // let aws_config = aws_config::load_from_env().await;
+            // let client = aws_sdk_s3::Client::new(&aws_config);
 
             Ok(Self {
-                client,
                 bucket: config.bucket.clone(),
             })
         }
@@ -505,98 +350,102 @@ pub mod providers {
 
     #[async_trait]
     impl ObjectStorage for S3Provider {
-        async fn put_object(&self, key: &str, data: &[u8]) -> Result<()> {
-            self.client
-                .put_object()
-                .bucket(&self.bucket)
-                .key(key)
-                .body(mock_aws::primitives::ByteStream::from(data.to_vec()))
-                .send()
-                .await
-                .map_err(|e| DuckHubError::network(format!("S3 put_object failed: {}", e)))?;
+        async fn put_object(&self, key: &str, _data: &[u8]) -> Result<()> {
+            // TODO: 实现真实的 S3 put_object
+            // self.client.put_object()
+            //     .bucket(&self.bucket)
+            //     .key(key)
+            //     .body(ByteStream::from(data.to_vec()))
+            //     .send()
+            //     .await?;
 
-            Ok(())
+            warn!("S3Provider::put_object 暂未实现，key: {}", key);
+            Err(DuckHubError::network("S3 功能暂未实现，等待真实 AWS SDK 集成".to_string()))
         }
 
         async fn get_object(&self, key: &str) -> Result<Vec<u8>> {
-            let response = self.client
-                .get_object()
-                .bucket(&self.bucket)
-                .key(key)
-                .send()
-                .await
-                .map_err(|e| DuckHubError::network(format!("S3 get_object failed: {}", e)))?;
+            // TODO: 实现真实的 S3 get_object
+            // let response = self.client.get_object()
+            //     .bucket(&self.bucket)
+            //     .key(key)
+            //     .send()
+            //     .await?;
+            // let data = response.body.collect().await?.into_bytes();
+            // Ok(data.to_vec())
 
-            // Mock implementation - return empty data
-            Ok(vec![])
+            warn!("S3Provider::get_object 暂未实现，key: {}", key);
+            Err(DuckHubError::network("S3 功能暂未实现，等待真实 AWS SDK 集成".to_string()))
         }
 
         async fn delete_object(&self, key: &str) -> Result<()> {
-            self.client
-                .delete_object()
-                .bucket(&self.bucket)
-                .key(key)
-                .send()
-                .await
-                .map_err(|e| DuckHubError::network(format!("S3 delete_object failed: {}", e)))?;
+            // TODO: 实现真实的 S3 delete_object
+            // self.client.delete_object()
+            //     .bucket(&self.bucket)
+            //     .key(key)
+            //     .send()
+            //     .await?;
 
-            Ok(())
+            warn!("S3Provider::delete_object 暂未实现，key: {}", key);
+            Err(DuckHubError::network("S3 功能暂未实现，等待真实 AWS SDK 集成".to_string()))
         }
 
         async fn object_exists(&self, key: &str) -> Result<bool> {
-            match self.client
-                .head_object()
-                .bucket(&self.bucket)
-                .key(key)
-                .send()
-                .await
-            {
-                Ok(_) => Ok(true),
-                Err(_) => Ok(false),
-            }
+            // TODO: 实现真实的 S3 head_object
+            // match self.client.head_object()
+            //     .bucket(&self.bucket)
+            //     .key(key)
+            //     .send()
+            //     .await
+            // {
+            //     Ok(_) => Ok(true),
+            //     Err(_) => Ok(false),
+            // }
+
+            warn!("S3Provider::object_exists 暂未实现，key: {}", key);
+            Err(DuckHubError::network("S3 功能暂未实现，等待真实 AWS SDK 集成".to_string()))
         }
 
         async fn list_objects(&self, prefix: &str) -> Result<Vec<ObjectInfo>> {
-            let response = self.client
-                .list_objects_v2()
-                .bucket(&self.bucket)
-                .prefix(prefix)
-                .send()
-                .await
-                .map_err(|e| DuckHubError::network(format!("S3 list_objects failed: {}", e)))?;
+            // TODO: 实现真实的 S3 list_objects_v2
+            // let response = self.client.list_objects_v2()
+            //     .bucket(&self.bucket)
+            //     .prefix(prefix)
+            //     .send()
+            //     .await?;
+            //
+            // let mut objects = Vec::new();
+            // for object in response.contents.unwrap_or_default() {
+            //     if let (Some(key), Some(size), Some(last_modified)) =
+            //         (object.key, object.size, object.last_modified) {
+            //         objects.push(ObjectInfo {
+            //             etag: object.e_tag,
+            //         });
+            //     }
+            // }
+            // Ok(objects)
 
-            let mut objects = Vec::new();
-            for object in response.contents {
-                if let (Some(key), Some(size), Some(last_modified)) =
-                    (object.key, object.size, object.last_modified) {
-                    objects.push(ObjectInfo {
-                        key,
-                        size: size as u64,
-                        last_modified: last_modified.into(),
-                        etag: object.e_tag,
-                    });
-                }
-            }
-
-            Ok(objects)
+            warn!("S3Provider::list_objects 暂未实现，prefix: {}", prefix);
+            Err(DuckHubError::network("S3 功能暂未实现，等待真实 AWS SDK 集成".to_string()))
         }
 
         async fn get_object_metadata(&self, key: &str) -> Result<ObjectMetadata> {
-            let response = self.client
-                .head_object()
-                .bucket(&self.bucket)
-                .key(key)
-                .send()
-                .await
-                .map_err(|e| DuckHubError::network(format!("S3 head_object failed: {}", e)))?;
+            // TODO: 实现真实的 S3 head_object
+            // let response = self.client.head_object()
+            //     .bucket(&self.bucket)
+            //     .key(key)
+            //     .send()
+            //     .await?;
+            //
+            // Ok(ObjectMetadata {
+            //     size: response.content_length.unwrap_or(0) as u64,
+            //     last_modified: response.last_modified.unwrap_or_default().into(),
+            //     content_type: response.content_type,
+            //     etag: response.e_tag,
+            //     metadata: response.metadata.unwrap_or_default(),
+            // })
 
-            Ok(ObjectMetadata {
-                size: response.content_length.unwrap_or(0) as u64,
-                last_modified: response.last_modified.unwrap_or_default().into(),
-                content_type: response.content_type,
-                etag: response.e_tag,
-                metadata: response.metadata.unwrap_or_default(),
-            })
+            warn!("S3Provider::get_object_metadata 暂未实现，key: {}", key);
+            Err(DuckHubError::network("S3 功能暂未实现，等待真实 AWS SDK 集成".to_string()))
         }
     }
 }

@@ -10,6 +10,10 @@ documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[[example]]
+name = "ducklake_example"
+path = "examples/ducklake_example.rs"
+
 [dependencies]
 # Core dependencies
 duckhub-common = { path = "../common" }

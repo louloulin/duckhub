@@ -17,8 +17,8 @@ pub mod realtime_financial_processor;  // Integrated real-time financial process
 pub mod pool;
 pub mod query;
 pub mod lake;
-// pub mod ducklake;  // Temporarily disabled due to compilation issues
-pub mod ducklake_simple;
+// 已移除 ducklake 模拟实现，使用 ducklake_real 真实实现
+// pub mod ducklake_simple;  // 简化版本已被真实实现替代
 pub mod schema;
 pub mod cache;
 pub mod metrics;
@@ -29,7 +29,7 @@ pub use duckdb::{DuckDBEngine, QueryResult};
 pub use pool::{ConnectionPool, PoolManager};
 pub use query::{QueryExecutor, QueryOptimizer, QueryCache};
 pub use lake::{DataLakeManager, ObjectStorageProvider};
-pub use ducklake_simple::{DuckLakeManager as DuckLakeManagerSimple, DuckLakeConfig as DuckLakeConfigSimple, DuckLakeDatabase as DuckLakeDatabaseSimple};
+// 已移除 ducklake_simple 导出，统一使用 ducklake_real
 pub use ducklake_real::{DuckLakeManager, DuckLakeConfig, DuckLakeDatabase, DuckLakeMetrics};
 pub use stream_processor::{StreamProcessor, StreamProcessorConfig, StreamRecord, ProcessingResult};
 pub use risk_engine::{RealTimeRiskEngine, RiskEngineConfig, PortfolioUpdate, RiskMetrics, RiskAlert};
