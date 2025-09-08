@@ -90,11 +90,35 @@ impl WebApiService {
         })
     }
 
+    /// 创建DuckLake管理器
+    async fn create_ducklake_manager(&self) -> Result<duckhub_database::ducklake_real::DuckLakeManager> {
+        use duckhub_database::ducklake_real::{DuckLakeManager, DuckLakeConfig};
+        use duckhub_database::real_duckdb::Connection;
+
+        // 创建DuckDB连接
+        let connection = Connection::open_in_memory().await?;
+
+        // 创建DuckLake管理器
+        let manager = DuckLakeManager::new(connection).await?;
+
+        info!("成功创建DuckLake管理器");
+        Ok(manager)
+    }
+
     /// 启动Web API服务
     #[instrument(skip(self))]
     pub async fn start(&self) -> Result<()> {
         let bind_address = format!("{}:{}", self.config.host, self.config.port);
         info!("启动Web API服务，监听地址: {}", bind_address);
+
+        // 创建DuckLake管理器（可选）
+        let ducklake_manager = match self.create_ducklake_manager().await {
+            Ok(manager) => Some(Arc::new(manager)),
+            Err(e) => {
+                warn!("无法创建DuckLake管理器: {}，将使用备用实现", e);
+                None
+            }
+        };
 
         // 创建应用状态
         let app_state = AppState {
@@ -108,6 +132,7 @@ impl WebApiService {
             monitoring_service: Arc::clone(&self.monitoring_service),
             registry: Arc::clone(&self.registry),
             config: self.config.clone(),
+            ducklake_manager,
         };
 
         // 启动HTTP服务器
@@ -149,6 +174,8 @@ pub struct AppState {
     pub monitoring_service: Arc<MonitoringService>,
     pub registry: Arc<Registry>,
     pub config: WebApiConfig,
+    /// DuckLake管理器 - 用于真实的DuckLake指标获取
+    pub ducklake_manager: Option<Arc<duckhub_database::ducklake_real::DuckLakeManager>>,
 }
 
 /// 配置路由

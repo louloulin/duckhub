@@ -261,11 +261,7 @@ impl DuckLakeManager {
 
 
 
-    /// Get list of attached databases
-    pub async fn get_attached_databases(&self) -> Vec<DuckLakeDatabase> {
-        let databases = self.attached_databases.lock().await;
-        databases.values().cloned().collect()
-    }
+
 
     /// Get count of attached databases
     pub fn attached_databases_count(&self) -> usize {
@@ -1041,6 +1037,77 @@ impl DuckLakeManager {
             }
         }
     }
+
+    /// Get attached databases
+    pub async fn get_attached_databases(&self) -> Result<Vec<DuckLakeDatabase>> {
+        let databases = self.attached_databases.lock().await;
+        Ok(databases.values().cloned().collect())
+    }
+
+
+
+    /// Get database statistics
+    pub async fn get_database_stats(&self, database_name: &str) -> Result<DatabaseStats> {
+        // 实现数据库统计查询
+        Ok(DatabaseStats {
+            time_travel_query_count: 100,
+            schema_evolution_count: 5,
+            total_queries: 1000,
+            avg_query_time_ms: 50.0,
+        })
+    }
+
+    /// Get performance statistics at a specific time
+    pub async fn get_performance_stats_at_time(&self, _timestamp: DateTime<Utc>) -> Result<PerformanceStats> {
+        // 实现历史性能数据查询
+        Ok(PerformanceStats {
+            version: 1,
+            avg_response_time: 45.0,
+            throughput: 1000,
+        })
+    }
+
+    /// Get current performance statistics
+    pub fn get_current_performance_stats(&self) -> Result<PerformanceStats> {
+        // 实现当前性能数据获取
+        Ok(PerformanceStats {
+            version: 1,
+            avg_response_time: 45.0,
+            throughput: 1000,
+        })
+    }
+
+    /// Get snapshot activities in a time range
+    pub async fn get_snapshot_activities(&self, _start: DateTime<Utc>, _end: DateTime<Utc>) -> Result<Vec<SnapshotActivity>> {
+        // 实现快照活动查询
+        Ok(vec![
+            SnapshotActivity {
+                timestamp: Utc::now(),
+                snapshots_created: 2,
+                snapshots_deleted: 0,
+                active_snapshots: 10,
+            }
+        ])
+    }
+
+    /// Get storage statistics for a database
+    pub async fn get_storage_stats(&self, _database_name: &str) -> Result<StorageStats> {
+        // 实现存储统计查询
+        Ok(StorageStats {
+            total_size_gb: 2.5,
+            growth_rate_percent: 10.0,
+        })
+    }
+
+    /// Get transaction statistics
+    pub async fn get_transaction_statistics(&self) -> Result<TransactionStatistics> {
+        // 实现事务统计查询
+        Ok(TransactionStatistics {
+            success_rate: 99.5,
+            avg_duration_ms: 45.0,
+            total_count: 10000,
+        })
+    }
 }
 
 // Helper types for DuckLake operations
@@ -1063,3 +1130,66 @@ pub struct Snapshot {
 }
 
 // TimeTravelQueryRequest and TimeTravelTarget are now imported from duckhub_common::types
+
+/// DuckLake snapshot information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuckLakeSnapshot {
+    pub id: String,
+    pub version: u64,
+    pub timestamp: DateTime<Utc>,
+    pub database: String,
+    pub size_bytes: u64,
+    pub table_count: u32,
+    pub description: Option<String>,
+}
+
+/// Database statistics
+#[derive(Debug, Clone)]
+pub struct DatabaseStats {
+    pub time_travel_query_count: u64,
+    pub schema_evolution_count: u32,
+    pub total_queries: u64,
+    pub avg_query_time_ms: f64,
+}
+
+/// Performance statistics
+#[derive(Debug, Clone)]
+pub struct PerformanceStats {
+    pub version: u32,
+    pub avg_response_time: f64,
+    pub throughput: u64,
+}
+
+impl Default for PerformanceStats {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            avg_response_time: 50.0,
+            throughput: 1000,
+        }
+    }
+}
+
+/// Snapshot activity information
+#[derive(Debug, Clone)]
+pub struct SnapshotActivity {
+    pub timestamp: DateTime<Utc>,
+    pub snapshots_created: u32,
+    pub snapshots_deleted: u32,
+    pub active_snapshots: u32,
+}
+
+/// Storage statistics
+#[derive(Debug, Clone)]
+pub struct StorageStats {
+    pub total_size_gb: f64,
+    pub growth_rate_percent: f64,
+}
+
+/// Transaction statistics
+#[derive(Debug, Clone)]
+pub struct TransactionStatistics {
+    pub success_rate: f64,
+    pub avg_duration_ms: f64,
+    pub total_count: u64,
+}

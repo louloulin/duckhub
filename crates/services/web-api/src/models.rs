@@ -291,7 +291,7 @@ mod tests {
         let error = "Test error".to_string();
         let code = 400;
         let request_id = "req-123".to_string();
-        let response: ApiResponse<()> = ApiResponse::error(error.clone(), code, request_id.clone());
+        let response: ApiResponse<()> = ApiResponse::<()>::error(error.clone(), code, request_id.clone());
         
         assert!(!response.success);
         assert_eq!(response.error, Some(error));
