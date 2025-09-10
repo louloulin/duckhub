@@ -634,23 +634,13 @@ fn generate_performance_history(points: usize, interval_minutes: i64) -> Vec<Per
 
 /// 获取指标数据
 async fn get_metrics_data(_request: &MetricsExportRequest) -> serde_json::Value {
-    // 模拟指标数据
+    // TODO: 从真实监控系统获取指标数据
+    // 暂时返回空数据，避免使用mock数据
     serde_json::json!({
-        "system": {
-            "cpu_usage": 42.8,
-            "memory_usage": 68.2,
-            "disk_usage": 45.6
-        },
-        "database": {
-            "queries_per_second": 125.5,
-            "avg_query_time": 85.3,
-            "cache_hit_ratio": 87.5
-        },
-        "ai": {
-            "requests_per_minute": 25.5,
-            "avg_response_time": 1250.5,
-            "accuracy": 92.5
-        }
+        "system": {},
+        "database": {},
+        "ai": {},
+        "note": "指标数据收集功能正在开发中"
     })
 }
 

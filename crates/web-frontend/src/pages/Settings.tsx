@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import {
   Settings as SettingsIcon,
   Database,
@@ -120,7 +121,8 @@ export default function Settings() {
         }
       } catch (error) {
         console.error('加载系统配置失败:', error)
-        // 保持默认配置
+        // 显示错误状态，不使用默认配置
+        console.error('加载系统配置失败，请刷新页面重试')
       } finally {
         setIsLoading(false)
       }

@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import { aiAgentAPI } from '@/services/api'
 import {
   Bot,
@@ -95,14 +96,10 @@ export default function AIAgent() {
 
       } catch (error) {
         console.error('加载AI数据失败:', error)
-        // 使用备用数据
-        setQuickActions([
-          { label: '时间旅行查询历史数据', icon: Clock, category: 'time_travel' },
-          { label: 'Schema演进建议', icon: GitBranch, category: 'schema' },
-          { label: '快照管理优化', icon: Layers, category: 'snapshot' },
-          { label: '性能优化分析', icon: Zap, category: 'performance' },
-        ])
+        // 不使用备用数据，显示错误状态
+        setQuickActions([])
         setRecommendations([])
+        console.error('AI服务暂时不可用，请稍后重试')
       } finally {
         setLoading(false)
       }
@@ -150,13 +147,26 @@ export default function AIAgent() {
     } catch (error) {
       console.error('AI回复失败:', error)
 
-      // 使用备用回复替换加载消息
-      const fallbackMessage = generateFallbackResponse(userInput)
+      // 显示错误消息，不使用fallback
+      const errorMessage: AssistantMessage = {
+        id: loadingMessage.id,
+        type: 'assistant',
+        content: 'AI服务暂时不可用，请稍后重试。如果问题持续存在，请联系系统管理员。',
+        timestamp: new Date().toISOString(),
+        category: 'error',
+        metadata: {
+          error: 'true',
+          note: '请检查网络连接或稍后重试'
+        }
+      }
+
       setMessages(prev =>
         prev.map(msg =>
-          msg.id === loadingMessage.id ? fallbackMessage : msg
+          msg.id === loadingMessage.id ? errorMessage : msg
         )
       )
+
+      console.error('AI回复失败，请稍后重试')
     }
   }
 
@@ -195,37 +205,7 @@ export default function AIAgent() {
     }
   }
 
-  // 备用的本地智能回复（当API不可用时使用）
-  const generateFallbackResponse = (userInput: string): AssistantMessage => {
-    const input = userInput.toLowerCase()
-
-    // 时间旅行查询相关
-    if (input.includes('历史') || input.includes('时间旅行') || input.includes('版本') || input.includes('之前')) {
-      return {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: '我为您推荐一个时间旅行查询方案。基于您的需求，建议查询历史版本的数据。',
-        timestamp: new Date().toISOString(),
-        category: 'time_travel',
-        metadata: {
-          sql_query: 'SELECT * FROM financial_data.transactions AT VERSION (SELECT MAX(version) - 1 FROM snapshots)',
-          note: '这是离线模式的基础建议，请连接网络获取更精确的分析'
-        }
-      }
-    }
-
-    // 基础的离线回复
-    return {
-      id: (Date.now() + 1).toString(),
-      type: 'assistant',
-      content: '我理解您的需求。请连接网络以获取更智能的AI分析和建议。',
-      timestamp: new Date().toISOString(),
-      category: 'general',
-      metadata: {
-        note: '离线模式 - 请连接网络获取完整的AI功能'
-      }
-    }
-  }
+  // 移除fallback响应逻辑，统一使用真实AI API
 
   return (
     <div className="space-y-6">

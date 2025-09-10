@@ -374,64 +374,14 @@ pub async fn get_table_data(
 
     info!("获取表 {} 的数据，limit: {}, offset: {}", table_name, limit, offset);
 
-    // 模拟表数据
+    // TODO: 从真实数据库获取表数据
+    // 暂时返回空数据，避免使用mock数据
     let (columns, data, total_rows) = match table_name.as_str() {
-        "transactions" => {
-            let columns = vec![
-                "id".to_string(),
-                "user_id".to_string(),
-                "amount".to_string(),
-                "currency".to_string(),
-                "transaction_type".to_string(),
-                "status".to_string(),
-                "created_at".to_string(),
-                "updated_at".to_string(),
-            ];
-
-            let mut data = Vec::new();
-            for i in (offset as u64 + 1)..=(offset as u64 + limit as u64).min(offset as u64 + 50) {
-                data.push(vec![
-                    serde_json::Value::Number(serde_json::Number::from(i)),
-                    serde_json::Value::Number(serde_json::Number::from(i % 1000 + 1)),
-                    serde_json::Value::String(format!("{:.2}", (i as f64 * 123.45) % 10000.0)),
-                    serde_json::Value::String("USD".to_string()),
-                    serde_json::Value::String(if i % 2 == 0 { "DEPOSIT" } else { "WITHDRAWAL" }.to_string()),
-                    serde_json::Value::String(if i % 3 == 0 { "COMPLETED" } else { "PENDING" }.to_string()),
-                    serde_json::Value::String(format!("2024-01-{:02}T{:02}:00:00Z", (i % 30) + 1, (i % 24))),
-                    if i % 4 == 0 {
-                        serde_json::Value::String(format!("2024-01-{:02}T{:02}:30:00Z", (i % 30) + 1, (i % 24)))
-                    } else {
-                        serde_json::Value::Null
-                    },
-                ]);
-            }
-
-            (columns, data, 1_250_000u64)
+        "transactions" | "users" => {
+            // 返回空数据结构
+            (vec![], vec![], 0u64)
         },
-        "users" => {
-            let columns = vec![
-                "id".to_string(),
-                "username".to_string(),
-                "email".to_string(),
-                "first_name".to_string(),
-                "last_name".to_string(),
-                "created_at".to_string(),
-            ];
 
-            let mut data = Vec::new();
-            for i in (offset as u64 + 1)..=(offset as u64 + limit as u64).min(offset as u64 + 20) {
-                data.push(vec![
-                    serde_json::Value::Number(serde_json::Number::from(i)),
-                    serde_json::Value::String(format!("user{}", i)),
-                    serde_json::Value::String(format!("user{}@example.com", i)),
-                    serde_json::Value::String(format!("First{}", i)),
-                    serde_json::Value::String(format!("Last{}", i)),
-                    serde_json::Value::String(format!("2024-01-{:02}T10:00:00Z", (i % 30) + 1)),
-                ]);
-            }
-
-            (columns, data, 50_000u64)
-        },
         _ => {
             error!("表 {} 不存在", table_name);
             return Ok(error_response("表不存在", 404));

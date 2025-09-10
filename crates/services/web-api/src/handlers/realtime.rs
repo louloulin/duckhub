@@ -224,18 +224,10 @@ impl WebSocketConnection {
     fn send_metrics_data(&self, subscription_id: &str, metrics: &[String], ctx: &mut ws::WebsocketContext<Self>) {
         let mut metric_values = HashMap::new();
         
-        // 模拟指标数据
+        // TODO: 从真实监控系统获取指标数据
+        // 暂时返回空数据，避免使用mock数据
         for metric in metrics {
-            let value = match metric.as_str() {
-                "cpu_usage" => 42.8,
-                "memory_usage" => 68.2,
-                "disk_usage" => 45.6,
-                "queries_per_second" => 125.5,
-                "active_connections" => 28.0,
-                "cache_hit_ratio" => 87.5,
-                _ => 0.0,
-            };
-            metric_values.insert(metric.clone(), value);
+            metric_values.insert(metric.clone(), 0.0);
         }
         
         let metrics_msg = WebSocketResponse::MetricsData {
@@ -304,20 +296,10 @@ pub async fn get_real_time_metrics(
     let metric_list: Vec<&str> = metrics.split(',').collect();
     let mut metric_values = HashMap::new();
     
-    // 模拟实时指标数据
+    // TODO: 从真实监控系统获取指标数据
+    // 暂时返回空数据，避免使用mock数据
     for metric in metric_list {
-        let value = match metric.trim() {
-            "cpu_usage" => 42.8,
-            "memory_usage" => 68.2,
-            "disk_usage" => 45.6,
-            "queries_per_second" => 125.5,
-            "active_connections" => 28.0,
-            "cache_hit_ratio" => 87.5,
-            "ai_requests_per_minute" => 15.2,
-            "error_rate" => 0.5,
-            _ => 0.0,
-        };
-        metric_values.insert(metric.trim().to_string(), value);
+        metric_values.insert(metric.trim().to_string(), 0.0);
     }
     
     let response = serde_json::json!({

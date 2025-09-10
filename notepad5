@@ -1,13 +1,58 @@
-请按照 `/Users/louloulin/Documents/augment-projects/duckhub/plan11.md` 文件中的计划执行以下任务：
+请按照 `/Users/louloulin/Documents/augment-projects/duckhub/plan12.md` 文件中的Phase 1计划执行Mock数据清理与真实化任务。基于我们之前的分析，当前DuckHub项目存在15+处mock数据依赖需要清理。请按以下具体步骤执行：
 
-1. **研究阶段**：搜索和收集关于 DuckLake 的技术资料和文档，了解其架构、功能和实现方式
+## 🔍 **阶段1: 研究与分析** (预计30分钟)
+1. **技术资料收集**：
+   - 搜索2025年最新的DuckLake技术文档和实现案例
+   - 研究DuckDB扩展系统和DuckLake元数据管理机制
+   - 分析现有的`crates/core/database/src/ducklake_real.rs`实现
 
-2. **实现阶段**：基于研究结果，在 DuckHub 项目中实现真正的 DuckLake 功能，替换当前的模拟（mock）实现
+2. **现状评估**：
+   - 使用codebase-retrieval工具识别所有mock数据依赖位置
+   - 重点分析前端组件中的fallback逻辑（AIAgent、Dashboard、DataExplorer、Settings页面）
+   - 检查后端API端点的mock响应实现
 
-3. **测试验证**：为新实现的功能编写全面的测试用例，确保功能正确性和稳定性
+## 🚀 **阶段2: 实现阶段** (预计2-3小时)
+1. **前端Mock数据清理**：
+   - 移除`src/pages/AIAgent.tsx`中的`generateFallbackResponse`函数
+   - 清理Dashboard页面的硬编码指标数据
+   - 替换DataExplorer的模拟schema和统计数据
+   - 统一所有组件的错误处理，移除fallback逻辑
 
-4. **文档更新**：测试验证通过后，更新 `plan11.md` 文件，标记已完成的功能实现状态
+2. **后端真实化实现**：
+   - 删除`backup/mock_implementations_*`目录
+   - 移除所有条件编译的mock代码
+   - 确保所有API端点使用真实的DuckLake实现
+   - 实现统一的API响应格式和错误处理
 
-5. **代码清理**：删除所有相关的模拟（mock）代码，确保使用真实的实现
+3. **安全配置修复**：
+   - 将`config/ai-agent.toml`中的硬编码API密钥改为环境变量
+   - 实现SecretManager for环境变量管理
 
-请在整个过程中使用中文进行说明和注释，并在每个阶段完成后提供进度报告。
+## 🧪 **阶段3: 测试验证** (预计1小时)
+1. **功能测试**：
+   - 编写集成测试验证所有API端点返回真实数据
+   - 测试前端组件在无mock数据情况下的正常工作
+   - 验证错误处理和加载状态的正确显示
+
+2. **性能测试**：
+   - 运行基准测试确保性能不受影响
+   - 验证API响应时间和前端加载速度
+
+## 📝 **阶段4: 文档更新** (预计15分钟)
+- 在`plan12.md`中标记Phase 1任务为完成状态
+- 记录具体的代码变更和清理成果
+- 更新成功标准的完成情况
+
+## 🧹 **阶段5: 代码清理** (预计30分钟)
+- 运行自动化检测脚本验证无mock依赖
+- 修复所有编译警告
+- 确保代码质量和一致性
+
+## 📊 **验收标准**
+- [ ] 前端0个组件使用fallback mock数据
+- [ ] 后端100%API端点返回真实数据
+- [ ] 通过所有测试用例
+- [ ] 无编译警告和错误
+- [ ] 性能指标不下降
+
+请在每个阶段完成后提供详细的进度报告，包括具体的代码变更、遇到的问题和解决方案。使用中文进行所有说明和注释。

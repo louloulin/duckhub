@@ -197,25 +197,8 @@ pub async fn get_system_health_dashboard(app_state: web::Data<AppState>) -> Acti
         }
     };
     
-    // 模拟系统告警
-    let alerts = vec![
-        SystemAlert {
-            id: "alert-001".to_string(),
-            level: "warning".to_string(),
-            title: "磁盘空间不足".to_string(),
-            message: "系统磁盘使用率已达到85%，建议清理日志文件".to_string(),
-            timestamp: (now - Duration::hours(2)).to_rfc3339(),
-            resolved: false,
-        },
-        SystemAlert {
-            id: "alert-002".to_string(),
-            level: "info".to_string(),
-            title: "缓存清理完成".to_string(),
-            message: "定期缓存清理任务已完成，释放了1.2GB空间".to_string(),
-            timestamp: (now - Duration::hours(6)).to_rfc3339(),
-            resolved: true,
-        },
-    ];
+    // TODO: 从真实告警系统获取告警数据
+    let alerts: Vec<SystemAlert> = vec![];
     
     // 确定整体状态
     let overall_status = if components.iter().any(|c| c.status == "critical") {
@@ -240,25 +223,10 @@ pub async fn get_system_health_dashboard(app_state: web::Data<AppState>) -> Acti
 }
 
 /// 生成趋势数据的辅助函数
-fn generate_trend_data(points: usize, interval_minutes: i64) -> Vec<QueryTrendPoint> {
-    let mut data_points = Vec::new();
-    let now = Utc::now();
-    
+fn generate_trend_data(_points: usize, _interval_minutes: i64) -> Vec<QueryTrendPoint> {
     // TODO: 从监控服务获取真实的查询趋势数据
     // 暂时返回空数据，避免使用模拟数据
-    for i in 0..points {
-        let timestamp = now - Duration::minutes(interval_minutes * (points - i - 1) as i64);
-
-        data_points.push(QueryTrendPoint {
-            timestamp: timestamp.to_rfc3339(),
-            query_count: 0,
-            avg_response_time: 0.0,
-            error_count: 0,
-            cache_hits: 0,
-        });
-    }
-    
-    data_points
+    vec![]
 }
 
 /// 获取真实的仪表板指标数据

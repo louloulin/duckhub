@@ -1,8 +1,9 @@
 # DuckHub AI Agent 配置文件
 
 [deepseek]
-# DeepSeek API密钥
-api_key = "sk-a4f888023ea74cef8afae36dc8581512"
+# DeepSeek API密钥 - 从环境变量获取
+# 设置环境变量: export DEEPSEEK_API_KEY="your-api-key-here"
+api_key = "${DEEPSEEK_API_KEY}"
 # API基础URL (可选)
 base_url = "https://api.deepseek.com"
 

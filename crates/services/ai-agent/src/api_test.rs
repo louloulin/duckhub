@@ -12,14 +12,17 @@ mod api_tests {
     #[tokio::test]
     #[ignore] // 默认忽略，需要真实API密钥时手动运行
     async fn test_real_deepseek_api() {
-        // 设置API密钥
-        env::set_var("DEEPSEEK_API_KEY", "sk-a4f888023ea74cef8afae36dc8581512");
+        // 检查API密钥是否已设置
+        if env::var("DEEPSEEK_API_KEY").is_err() {
+            println!("⚠️  请设置DEEPSEEK_API_KEY环境变量后运行此测试");
+            return;
+        }
         
         // 创建配置
         let config = RigAIConfig::default();
         
         // 验证API密钥已正确设置
-        assert_eq!(config.deepseek_api_key, "sk-a4f888023ea74cef8afae36dc8581512");
+        assert!(!config.deepseek_api_key.is_empty(), "API密钥不应为空");
         println!("✅ API密钥配置正确");
         
         // 创建DeepSeek客户端
@@ -62,7 +65,10 @@ mod api_tests {
     #[tokio::test]
     #[ignore] // 需要真实API密钥
     async fn test_sql_generation_accuracy_real() {
-        env::set_var("DEEPSEEK_API_KEY", "sk-a4f888023ea74cef8afae36dc8581512");
+        if env::var("DEEPSEEK_API_KEY").is_err() {
+            println!("⚠️  请设置DEEPSEEK_API_KEY环境变量后运行此测试");
+            return;
+        }
         
         let config = RigAIConfig::default();
         use rig::providers::deepseek;
@@ -129,7 +135,10 @@ mod api_tests {
     #[tokio::test]
     #[ignore] // 需要真实API密钥
     async fn test_real_response_time() {
-        env::set_var("DEEPSEEK_API_KEY", "sk-a4f888023ea74cef8afae36dc8581512");
+        if env::var("DEEPSEEK_API_KEY").is_err() {
+            println!("⚠️  请设置DEEPSEEK_API_KEY环境变量后运行此测试");
+            return;
+        }
         
         let config = RigAIConfig::default();
         use rig::providers::deepseek;

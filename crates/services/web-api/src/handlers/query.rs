@@ -284,25 +284,11 @@ pub async fn get_query_history(
     
     info!("获取查询历史，页码: {}, 页大小: {}", page, page_size);
 
-    // 查询历史 - 简化实现
-    let mock_queries = vec![
-        serde_json::json!({
-            "id": "query-1",
-            "sql": "SELECT * FROM transactions WHERE amount > 1000",
-            "executed_at": "2024-01-11T10:00:00Z",
-            "execution_time_ms": 150,
-            "row_count": 1250
-        }),
-        serde_json::json!({
-            "id": "query-2",
-            "sql": "SELECT COUNT(*) FROM users",
-            "executed_at": "2024-01-11T09:30:00Z",
-            "execution_time_ms": 50,
-            "row_count": 1
-        })
-    ];
+    // TODO: 从真实查询日志获取历史数据
+    // 暂时返回空数据，避免使用mock数据
+    let queries: Vec<serde_json::Value> = vec![];
 
-    Ok(paginated_response(mock_queries, page, page_size, 2))
+    Ok(paginated_response(queries, page, page_size, 0))
 }
 
 /// 分页查询参数
