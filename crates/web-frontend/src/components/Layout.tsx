@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { CommandPalette } from '@/components/layout/CommandPalette'
 import {
   BarChart3,
   Database,
@@ -34,14 +35,22 @@ const navigation = [
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const location = useLocation()
 
-  // 键盘快捷键：Ctrl/Cmd + B 切换侧边栏
+  // 键盘快捷键
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl/Cmd + B 切换侧边栏
       if ((event.ctrlKey || event.metaKey) && event.key === 'b') {
         event.preventDefault()
         setSidebarCollapsed(!sidebarCollapsed)
+      }
+
+      // Ctrl/Cmd + K 打开命令面板
+      if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+        event.preventDefault()
+        setCommandPaletteOpen(true)
       }
     }
 
@@ -51,6 +60,12 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* 命令面板 */}
+      <CommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+      />
+
       {/* 移动端侧边栏 */}
       <div className={cn(
         "fixed inset-0 z-50 lg:hidden",
@@ -242,13 +257,14 @@ export default function Layout({ children }: LayoutProps) {
             <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
               <div className="flex flex-1 items-center justify-end sm:justify-start">
                 <div className="relative w-full max-w-lg">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="search"
-                    placeholder="搜索表、查询或数据... (Ctrl+K)"
-                    className="w-full rounded-lg border border-input bg-background pl-10 pr-12 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-200"
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <button
+                    onClick={() => setCommandPaletteOpen(true)}
+                    className="w-full rounded-lg border border-input bg-background pl-10 pr-12 py-2.5 text-sm text-left text-muted-foreground hover:border-primary hover:bg-accent/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-200"
+                  >
+                    搜索表、查询或数据...
+                  </button>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                     <kbd className="px-2 py-1 text-xs bg-muted rounded border border-border">
                       ⌘K
                     </kbd>
