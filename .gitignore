@@ -18,7 +18,7 @@ target/
 node_modules/
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
-
+.next/
 # UI
 ./ui/desktop/node_modules
 ./ui/desktop/out

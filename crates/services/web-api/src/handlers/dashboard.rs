@@ -147,17 +147,25 @@ pub async fn get_query_trends(
     
     // 计算汇总统计
     let total_queries: u64 = data_points.iter().map(|p| p.query_count).sum();
-    let avg_response_time = data_points.iter().map(|p| p.avg_response_time).sum::<f64>() / data_points.len() as f64;
+    let avg_response_time = if data_points.is_empty() {
+        0.0
+    } else {
+        data_points.iter().map(|p| p.avg_response_time).sum::<f64>() / data_points.len() as f64
+    };
     let total_errors: u64 = data_points.iter().map(|p| p.error_count).sum();
     let total_cache_hits: u64 = data_points.iter().map(|p| p.cache_hits).sum();
-    
-    let peak_point = data_points.iter().max_by_key(|p| p.query_count).unwrap();
-    
+
+    let (peak_qps, peak_time) = if let Some(peak_point) = data_points.iter().max_by_key(|p| p.query_count) {
+        (peak_point.query_count, peak_point.timestamp.clone())
+    } else {
+        (0, chrono::Utc::now().to_rfc3339())
+    };
+
     let summary = QueryTrendSummary {
         total_queries,
         avg_response_time,
-        peak_qps: peak_point.query_count,
-        peak_time: peak_point.timestamp.clone(),
+        peak_qps,
+        peak_time,
         error_rate: if total_queries > 0 { (total_errors as f64 / total_queries as f64) * 100.0 } else { 0.0 },
         cache_hit_rate: if total_queries > 0 { (total_cache_hits as f64 / total_queries as f64) * 100.0 } else { 0.0 },
     };
