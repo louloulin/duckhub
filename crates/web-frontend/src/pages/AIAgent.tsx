@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { aiAgentAPI } from '@/services/api'
 import {
   Bot,
   Send,
@@ -30,11 +31,13 @@ interface UserMessage extends BaseMessage {
 
 interface AssistantMessage extends BaseMessage {
   type: 'assistant'
-  category?: 'general' | 'time_travel' | 'schema' | 'snapshot' | 'performance'
+  category?: 'general' | 'time_travel' | 'schema' | 'snapshot' | 'performance' | 'loading' | 'error'
   metadata?: {
     sql_query?: string
     execution_time?: number
     result_count?: number
+    error?: string
+    note?: string
     time_travel?: {
       suggested_version?: number
       suggested_timestamp?: string
@@ -61,29 +64,139 @@ export default function AIAgent() {
   const [message, setMessage] = useState('')
   const [activeTab, setActiveTab] = useState('chat')
   const [messages, setMessages] = useState<Message[]>([])
+  const [quickActions, setQuickActions] = useState<any[]>([])
+  const [recommendations, setRecommendations] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const handleSendMessage = () => {
+  // 加载AI助手数据
+  useEffect(() => {
+    const loadAIData = async () => {
+      setLoading(true)
+      try {
+        // 获取AI推荐
+        const recommendationsResponse = await aiAgentAPI.getRecommendations({
+          context: 'ducklake_management',
+          user_preferences: ['performance', 'schema', 'snapshots']
+        })
+
+        if (recommendationsResponse.data.success) {
+          setRecommendations(recommendationsResponse.data.data || [])
+        }
+
+        // 设置快速操作（这些可以是静态的，因为它们是UI功能）
+        setQuickActions([
+          { label: '时间旅行查询历史数据', icon: Clock, category: 'time_travel' },
+          { label: 'Schema演进建议', icon: GitBranch, category: 'schema' },
+          { label: '快照管理优化', icon: Layers, category: 'snapshot' },
+          { label: '性能优化分析', icon: Zap, category: 'performance' },
+          { label: '显示所有交易记录', icon: MessageSquare, category: 'general' },
+          { label: '检测异常交易', icon: Lightbulb, category: 'general' },
+        ])
+
+      } catch (error) {
+        console.error('加载AI数据失败:', error)
+        // 使用备用数据
+        setQuickActions([
+          { label: '时间旅行查询历史数据', icon: Clock, category: 'time_travel' },
+          { label: 'Schema演进建议', icon: GitBranch, category: 'schema' },
+          { label: '快照管理优化', icon: Layers, category: 'snapshot' },
+          { label: '性能优化分析', icon: Zap, category: 'performance' },
+        ])
+        setRecommendations([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadAIData()
+  }, [])
+
+  const handleSendMessage = async () => {
     if (!message.trim()) return
+
+    const userInput = message
+    setMessage('') // 立即清空输入框
 
     // 添加用户消息
     const userMessage: UserMessage = {
       id: Date.now().toString(),
       type: 'user',
-      content: message,
+      content: userInput,
       timestamp: new Date().toISOString(),
     }
     setMessages(prev => [...prev, userMessage])
 
-    // 智能AI回复 - 基于DuckLake功能
-    setTimeout(() => {
-      const assistantMessage = generateSmartResponse(message)
-      setMessages(prev => [...prev, assistantMessage])
-    }, 1000)
+    // 添加加载状态消息
+    const loadingMessage: AssistantMessage = {
+      id: (Date.now() + 1).toString(),
+      type: 'assistant',
+      content: '正在分析您的问题...',
+      timestamp: new Date().toISOString(),
+      category: 'loading',
+      metadata: {}
+    }
+    setMessages(prev => [...prev, loadingMessage])
 
-    setMessage('')
+    try {
+      // 调用真实的AI智能回复
+      const assistantMessage = await generateSmartResponse(userInput)
+
+      // 替换加载消息为真实回复
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === loadingMessage.id ? assistantMessage : msg
+        )
+      )
+    } catch (error) {
+      console.error('AI回复失败:', error)
+
+      // 使用备用回复替换加载消息
+      const fallbackMessage = generateFallbackResponse(userInput)
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === loadingMessage.id ? fallbackMessage : msg
+        )
+      )
+    }
   }
 
-  const generateSmartResponse = (userInput: string): AssistantMessage => {
+  // 真实的AI智能回复生成函数
+  const generateSmartResponse = async (userInput: string): Promise<AssistantMessage> => {
+    try {
+      // 调用真实的AI Agent API
+      const response = await aiAgentAPI.processNLPQuery(userInput)
+
+      if (response.data.success) {
+        return {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: response.data.data.response,
+          timestamp: new Date().toISOString(),
+          category: response.data.data.category || 'general',
+          metadata: response.data.data.metadata || {}
+        }
+      } else {
+        throw new Error(response.data.message || 'AI处理失败')
+      }
+    } catch (error) {
+      console.error('AI智能回复生成失败:', error)
+
+      // 错误时返回基础回复
+      return {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant',
+        content: '抱歉，我暂时无法处理您的请求。请稍后重试或联系管理员。',
+        timestamp: new Date().toISOString(),
+        category: 'error',
+        metadata: {
+          error: error instanceof Error ? error.message : '未知错误'
+        }
+      }
+    }
+  }
+
+  // 备用的本地智能回复（当API不可用时使用）
+  const generateFallbackResponse = (userInput: string): AssistantMessage => {
     const input = userInput.toLowerCase()
 
     // 时间旅行查询相关
@@ -91,143 +204,28 @@ export default function AIAgent() {
       return {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
-        content: '我为您推荐一个时间旅行查询方案。基于您的需求，建议查询版本126的数据，该版本在昨天下午创建，包含了完整的交易记录。',
+        content: '我为您推荐一个时间旅行查询方案。基于您的需求，建议查询历史版本的数据。',
         timestamp: new Date().toISOString(),
         category: 'time_travel',
         metadata: {
-          sql_query: 'SELECT * FROM financial_data.transactions AT VERSION 126 WHERE created_at >= \'2024-01-10\'',
-          time_travel: {
-            suggested_version: 126,
-            suggested_timestamp: '2024-01-10 16:20:15',
-            reasoning: '版本126包含最稳定的数据集，且Schema兼容性良好'
-          }
+          sql_query: 'SELECT * FROM financial_data.transactions AT VERSION (SELECT MAX(version) - 1 FROM snapshots)',
+          note: '这是离线模式的基础建议，请连接网络获取更精确的分析'
         }
       }
     }
 
-    // Schema演进相关
-    if (input.includes('schema') || input.includes('表结构') || input.includes('字段') || input.includes('列')) {
-      return {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: '我分析了您的Schema演进需求。建议为transactions表添加status字段，这是一个向后兼容的安全操作。',
-        timestamp: new Date().toISOString(),
-        category: 'schema',
-        metadata: {
-          schema_suggestion: {
-            operation: 'add_column',
-            table: 'transactions',
-            details: 'ALTER TABLE transactions ADD COLUMN status VARCHAR(50) DEFAULT \'pending\'',
-            compatibility: 'safe',
-            impact: 'low'
-          }
-        }
-      }
-    }
-
-    // 快照管理相关
-    if (input.includes('快照') || input.includes('备份') || input.includes('版本管理')) {
-      return {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: '基于您的数据增长模式，我建议创建一个新的快照。当前数据变化率较高，及时快照可以保护重要数据状态。',
-        timestamp: new Date().toISOString(),
-        category: 'snapshot',
-        metadata: {
-          snapshot_recommendation: {
-            action: 'create',
-            reason: '数据变化率达到15%，建议及时创建快照',
-            estimated_benefit: '可节省20%的恢复时间，提升数据安全性'
-          }
-        }
-      }
-    }
-
-    // 性能优化相关
-    if (input.includes('性能') || input.includes('优化') || input.includes('慢') || input.includes('快')) {
-      return {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: '我检测到您的查询性能可以进一步优化。建议为user_id字段添加索引，预计可提升查询速度40%。',
-        timestamp: new Date().toISOString(),
-        category: 'performance',
-        metadata: {
-          sql_query: 'CREATE INDEX idx_user_id ON transactions(user_id)',
-          execution_time: 85,
-          result_count: 1250,
-          schema_suggestion: {
-            operation: 'add_index',
-            table: 'transactions',
-            details: 'CREATE INDEX idx_user_id ON transactions(user_id)',
-            compatibility: 'safe',
-            impact: 'low'
-          }
-        }
-      }
-    }
-
-    // 默认通用回复
+    // 基础的离线回复
     return {
       id: (Date.now() + 1).toString(),
       type: 'assistant',
-      content: '我理解您的需求。基于DuckLake的强大功能，我可以为您提供数据查询、版本管理和性能优化建议。请告诉我更具体的需求，我会为您制定最佳方案。',
+      content: '我理解您的需求。请连接网络以获取更智能的AI分析和建议。',
       timestamp: new Date().toISOString(),
       category: 'general',
       metadata: {
-        sql_query: 'SELECT * FROM information_schema.tables WHERE table_schema = \'financial_data\'',
-        execution_time: 45,
-        result_count: 15,
+        note: '离线模式 - 请连接网络获取完整的AI功能'
       }
     }
   }
-
-  const quickActions = [
-    { label: '时间旅行查询历史数据', icon: Clock, category: 'time_travel' },
-    { label: 'Schema演进建议', icon: GitBranch, category: 'schema' },
-    { label: '快照管理优化', icon: Layers, category: 'snapshot' },
-    { label: '性能优化分析', icon: Zap, category: 'performance' },
-    { label: '显示所有交易记录', icon: MessageSquare, category: 'general' },
-    { label: '检测异常交易', icon: Lightbulb, category: 'general' },
-  ]
-
-  const recommendations = [
-    {
-      id: '1',
-      title: '时间旅行查询优化',
-      description: '建议使用版本126查询昨日数据，性能最佳',
-      priority: 'high' as const,
-      category: 'time_travel',
-      sql: 'SELECT * FROM financial_data.transactions AT VERSION 126',
-      icon: Clock,
-    },
-    {
-      id: '2',
-      title: 'Schema演进建议',
-      description: '为transactions表添加status字段，向后兼容',
-      priority: 'medium' as const,
-      category: 'schema',
-      sql: 'ALTER TABLE transactions ADD COLUMN status VARCHAR(50) DEFAULT \'pending\'',
-      icon: GitBranch,
-    },
-    {
-      id: '3',
-      title: '快照清理策略',
-      description: '建议清理30天前的快照，释放存储空间',
-      priority: 'medium' as const,
-      category: 'snapshot',
-      sql: 'SELECT * FROM snapshots WHERE created_at < NOW() - INTERVAL 30 DAY',
-      icon: Layers,
-    },
-    {
-      id: '4',
-      title: '查询性能优化',
-      description: '为user_id字段添加索引，提升查询速度40%',
-      priority: 'high' as const,
-      category: 'performance',
-      sql: 'CREATE INDEX idx_user_id ON transactions(user_id)',
-      icon: Zap,
-    },
-  ]
 
   return (
     <div className="space-y-6">
@@ -442,8 +440,22 @@ export default function AIAgent() {
 
         {/* 智能建议标签页 */}
         <TabsContent value="recommendations" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            {recommendations.map((rec) => (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-gray-600">正在加载AI建议...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2">
+              {recommendations.length === 0 ? (
+                <div className="col-span-2 text-center py-12">
+                  <Bot className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">暂无AI建议，请稍后刷新</p>
+                </div>
+              ) : (
+                recommendations.map((rec) => (
               <Card key={rec.id} className="card-hover">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -478,9 +490,11 @@ export default function AIAgent() {
                     </div>
                   </div>
                 </CardContent>
-              </Card>
-            ))}
-          </div>
+                </Card>
+                ))
+              )}
+            </div>
+          )}
         </TabsContent>
 
         {/* 数据洞察标签页 */}
