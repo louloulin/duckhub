@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { CommandPalette } from '@/components/layout/CommandPalette'
+import { SimpleStatusIndicator, NetworkStatusMonitor } from '@/components/common/RealtimeIndicator'
+import { ConnectionStatus } from '@/hooks/useRealtime'
 import {
   BarChart3,
   Database,
@@ -36,6 +38,7 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [realtimeStatus] = useState<ConnectionStatus>(ConnectionStatus.CONNECTED) // setRealtimeStatus暂时未使用
   const location = useLocation()
 
   // 键盘快捷键
@@ -60,6 +63,9 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* 网络状态监控 */}
+      <NetworkStatusMonitor />
+
       {/* 命令面板 */}
       <CommandPalette
         open={commandPaletteOpen}
@@ -273,10 +279,12 @@ export default function Layout({ children }: LayoutProps) {
               </div>
 
               <div className="flex items-center gap-x-2 lg:gap-x-4">
-                {/* 系统状态指示器 */}
-                <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 text-success text-xs font-medium">
-                  <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-                  系统正常
+                {/* 实时状态指示器 */}
+                <div className="hidden lg:flex">
+                  <SimpleStatusIndicator
+                    status={realtimeStatus}
+                    className="px-3 py-1.5 rounded-full bg-background/50 border"
+                  />
                 </div>
 
                 {/* 通知按钮 */}

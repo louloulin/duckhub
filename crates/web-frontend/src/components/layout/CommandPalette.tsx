@@ -141,17 +141,45 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     setSearchQuery('')
   }
 
-  // 过滤搜索结果
+  // 过滤搜索结果 - 支持模糊搜索
   const filterItems = (items: any[], query: string) => {
     if (!query) return items
-    
+
+    const searchText = query.toLowerCase()
+
     return items.filter(item => {
-      const searchText = query.toLowerCase()
-      return (
-        item.name.toLowerCase().includes(searchText) ||
-        item.description.toLowerCase().includes(searchText) ||
-        item.keywords.some((keyword: string) => keyword.toLowerCase().includes(searchText))
+      // 精确匹配得分更高
+      const exactMatch = item.name.toLowerCase().includes(searchText)
+      const descriptionMatch = item.description.toLowerCase().includes(searchText)
+      const keywordMatch = item.keywords.some((keyword: string) =>
+        keyword.toLowerCase().includes(searchText)
       )
+
+      // 模糊匹配 - 检查字符序列
+      const fuzzyMatch = (text: string) => {
+        const textLower = text.toLowerCase()
+        let queryIndex = 0
+        for (let i = 0; i < textLower.length && queryIndex < searchText.length; i++) {
+          if (textLower[i] === searchText[queryIndex]) {
+            queryIndex++
+          }
+        }
+        return queryIndex === searchText.length
+      }
+
+      const fuzzyNameMatch = fuzzyMatch(item.name)
+      const fuzzyDescMatch = fuzzyMatch(item.description)
+
+      return exactMatch || descriptionMatch || keywordMatch || fuzzyNameMatch || fuzzyDescMatch
+    }).sort((a, b) => {
+      // 排序：精确匹配优先
+      const aExact = a.name.toLowerCase().includes(searchText)
+      const bExact = b.name.toLowerCase().includes(searchText)
+
+      if (aExact && !bExact) return -1
+      if (!aExact && bExact) return 1
+
+      return a.name.localeCompare(b.name)
     })
   }
 
