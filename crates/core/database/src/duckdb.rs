@@ -7,8 +7,8 @@ use crate::ducklake_real::DuckLakeManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, info, instrument, warn};
-use base64::prelude::*;
+use tracing::{warn};
+// use base64::prelude::*; // 暂时未使用
 
 // Re-export real DuckDB types
 pub use crate::real_duckdb::*;

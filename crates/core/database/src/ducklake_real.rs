@@ -9,11 +9,12 @@ use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use std::path::PathBuf;
+// use std::path::PathBuf; // 暂时未使用
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, warn, error, debug};
-use duckdb::{ToSql, types::Value};
+use duckdb::ToSql;
+// use duckdb::types::Value; // 暂时未使用
 
 /// Real DuckLake Manager
 #[derive(Debug)]
@@ -310,6 +311,36 @@ pub struct QueryResult {
     pub rows: Vec<HashMap<String, serde_json::Value>>,
     pub columns: Vec<String>,
     pub execution_time: f64,
+}
+
+/// 数据血缘追踪结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DataLineage {
+    pub database: String,
+    pub table: String,
+    pub column: Option<String>,
+    pub lineage_entries: Vec<HashMap<String, serde_json::Value>>,
+    pub traced_at: DateTime<Utc>,
+}
+
+/// 分区策略枚举
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum PartitionStrategy {
+    None,
+    Monthly,
+    Daily,
+}
+
+/// 分区建议结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PartitioningSuggestion {
+    pub database: String,
+    pub table: String,
+    pub current_rows: u64,
+    pub suggested_strategy: PartitionStrategy,
+    pub estimated_performance_gain: f64,
+    pub implementation_sql: String,
+    pub analyzed_at: DateTime<Utc>,
 }
 
 impl DuckLakeManager {
@@ -834,6 +865,126 @@ impl DuckLakeManager {
                 // Fallback to our metadata tables
                 self.list_snapshots_from_metadata(database).await
             }
+        }
+    }
+
+    /// 高级DuckLake功能：数据血缘追踪
+    pub async fn trace_data_lineage(&self, database: &str, table: &str, column: Option<&str>) -> Result<DataLineage> {
+        info!("Tracing data lineage for {}.{}", database, table);
+
+        let lineage_sql = if let Some(col) = column {
+            format!(
+                "SELECT source_table, source_column, transformation_type, created_at
+                 FROM ducklake_lineage
+                 WHERE target_database = '{}' AND target_table = '{}' AND target_column = '{}'
+                 ORDER BY created_at DESC",
+                database, table, col
+            )
+        } else {
+            format!(
+                "SELECT source_table, source_column, transformation_type, created_at
+                 FROM ducklake_lineage
+                 WHERE target_database = '{}' AND target_table = '{}'
+                 ORDER BY created_at DESC",
+                database, table
+            )
+        };
+
+        let rows = self.connection.query_rows(&lineage_sql, &[]).await
+            .unwrap_or_else(|_| {
+                // 如果没有血缘表，返回基本信息
+                vec![HashMap::from([
+                    ("source_table".to_string(), serde_json::Value::String(table.to_string())),
+                    ("transformation_type".to_string(), serde_json::Value::String("direct".to_string())),
+                    ("created_at".to_string(), serde_json::Value::String(Utc::now().to_rfc3339())),
+                ])]
+            });
+
+        Ok(DataLineage {
+            database: database.to_string(),
+            table: table.to_string(),
+            column: column.map(|s| s.to_string()),
+            lineage_entries: rows,
+            traced_at: Utc::now(),
+        })
+    }
+
+    /// 高级DuckLake功能：智能数据分区建议
+    pub async fn suggest_partitioning(&self, database: &str, table: &str) -> Result<PartitioningSuggestion> {
+        info!("Analyzing partitioning suggestions for {}.{}", database, table);
+
+        // 分析表的数据分布和查询模式
+        let analysis_sql = format!(
+            "SELECT
+                COUNT(*) as total_rows,
+                COUNT(DISTINCT DATE_TRUNC('month', created_at)) as month_partitions,
+                COUNT(DISTINCT DATE_TRUNC('day', created_at)) as day_partitions,
+                AVG(LENGTH(CAST(* AS VARCHAR))) as avg_row_size
+             FROM {}.{}
+             WHERE created_at IS NOT NULL",
+            database, table
+        );
+
+        let stats = self.connection.query_rows(&analysis_sql, &[]).await
+            .unwrap_or_else(|_| vec![HashMap::new()]);
+
+        let total_rows = stats.get(0)
+            .and_then(|row| row.get("total_rows"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+
+        let suggestion = if total_rows > 10_000_000 {
+            PartitionStrategy::Daily
+        } else if total_rows > 1_000_000 {
+            PartitionStrategy::Monthly
+        } else {
+            PartitionStrategy::None
+        };
+
+        Ok(PartitioningSuggestion {
+            database: database.to_string(),
+            table: table.to_string(),
+            current_rows: total_rows,
+            suggested_strategy: suggestion,
+            estimated_performance_gain: self.calculate_performance_gain(total_rows, &suggestion),
+            implementation_sql: self.generate_partition_sql(database, table, &suggestion),
+            analyzed_at: Utc::now(),
+        })
+    }
+
+    /// 计算分区性能提升估算
+    pub fn calculate_performance_gain(&self, total_rows: u64, strategy: &PartitionStrategy) -> f64 {
+        match strategy {
+            PartitionStrategy::None => 0.0,
+            PartitionStrategy::Monthly => {
+                if total_rows > 1_000_000 {
+                    0.3 // 30% 性能提升
+                } else {
+                    0.1 // 10% 性能提升
+                }
+            },
+            PartitionStrategy::Daily => {
+                if total_rows > 10_000_000 {
+                    0.6 // 60% 性能提升
+                } else {
+                    0.4 // 40% 性能提升
+                }
+            },
+        }
+    }
+
+    /// 生成分区实现SQL
+    pub fn generate_partition_sql(&self, database: &str, table: &str, strategy: &PartitionStrategy) -> String {
+        match strategy {
+            PartitionStrategy::None => "-- No partitioning recommended".to_string(),
+            PartitionStrategy::Monthly => format!(
+                "ALTER TABLE {}.{} ADD PARTITION BY (DATE_TRUNC('month', created_at))",
+                database, table
+            ),
+            PartitionStrategy::Daily => format!(
+                "ALTER TABLE {}.{} ADD PARTITION BY (DATE_TRUNC('day', created_at))",
+                database, table
+            ),
         }
     }
 

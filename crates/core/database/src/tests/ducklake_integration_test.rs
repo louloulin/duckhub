@@ -21,7 +21,7 @@ async fn test_ducklake_manager_creation() {
     let ducklake_manager = DuckLakeManager::new(connection).await.unwrap();
     
     // Test basic functionality
-    let databases = ducklake_manager.get_attached_databases().await;
+    let databases = ducklake_manager.get_attached_databases().await.unwrap();
     assert!(databases.is_empty()); // Should start empty
 }
 
