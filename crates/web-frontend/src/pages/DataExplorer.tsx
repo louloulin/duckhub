@@ -134,7 +134,7 @@ export default function DataExplorer() {
 
   // 表结构数据状态
   const [tableSchema, setTableSchema] = useState<SchemaColumn[]>([])
-  const [schemaLoading, setSchemaLoading] = useState(false)
+  const [, setSchemaLoading] = useState(false)
 
   // 获取表结构
   useEffect(() => {
@@ -165,14 +165,14 @@ export default function DataExplorer() {
 
   // Schema演进历史状态
   const [schemaVersions, setSchemaVersions] = useState<SchemaVersion[]>([])
-  const [schemaVersionsLoading, setSchemaVersionsLoading] = useState(false)
+  const [, setSchemaVersionsLoading] = useState(false)
 
   // 获取Schema演进历史
   useEffect(() => {
     const fetchSchemaVersions = async () => {
       try {
         setSchemaVersionsLoading(true)
-        const response = await dataExplorerAPI.getSchemaEvolution({ table: selectedTable })
+        const response = await dataExplorerAPI.getSchemaEvolution(selectedTable || '')
         if (response.data.success) {
           setSchemaVersions(response.data.data)
         } else {

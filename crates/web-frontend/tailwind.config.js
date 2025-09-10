@@ -50,6 +50,19 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Supabase风格扩展色彩
+        success: "hsl(var(--success))",
+        warning: "hsl(var(--warning))",
+        info: "hsl(var(--info))",
+        supabase: {
+          green: "#3ECF8E",
+          "green-dark": "#249361",
+          "green-light": "#4FD1A7",
+        },
+      },
+      fontFamily: {
+        sans: ["Inter", "ui-sans-serif", "system-ui"],
+        mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular"],
       },
       borderRadius: {
         lg: "var(--radius)",

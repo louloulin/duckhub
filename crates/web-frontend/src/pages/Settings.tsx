@@ -78,8 +78,8 @@ export default function Settings() {
       alertThreshold: 0,
     },
   })
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
+  const [, setIsLoading] = useState(true)
+  const [, setIsSaving] = useState(false)
 
   // 加载系统配置
   useEffect(() => {

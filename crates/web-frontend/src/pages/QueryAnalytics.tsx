@@ -78,7 +78,7 @@ export default function QueryAnalytics() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<QueryResult | null>(null)
   const [loading, setLoading] = useState(false)
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  const [, setIsLoadingHistory] = useState(true)
 
   const [timeTravelTarget, setTimeTravelTarget] = useState<TimeTravelTarget>({
     type: 'version',

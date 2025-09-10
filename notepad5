@@ -1,4 +1,4 @@
-请按照 `/Users/louloulin/Documents/augment-projects/duckhub/p lan.md` 文件中的计划执行以下任务：
+请按照 `/Users/louloulin/Documents/augment-projects/duckhub/plan11.md` 文件中的计划执行以下任务：
 
 1. **研究阶段**：搜索和收集关于 DuckLake 的技术资料和文档，了解其架构、功能和实现方式
 
@@ -6,7 +6,7 @@
 
 3. **测试验证**：为新实现的功能编写全面的测试用例，确保功能正确性和稳定性
 
-4. **文档更新**：测试验证通过后，更新 `plan10.md` 文件，标记已完成的功能实现状态
+4. **文档更新**：测试验证通过后，更新 `plan11.md` 文件，标记已完成的功能实现状态
 
 5. **代码清理**：删除所有相关的模拟（mock）代码，确保使用真实的实现
 

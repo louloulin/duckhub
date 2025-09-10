@@ -60,10 +60,10 @@ export default function Layout({ children }: LayoutProps) {
         <div className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 shadow-xl">
           <div className="flex h-16 items-center justify-between px-4 border-b border-gray-200">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 supabase-gradient rounded-lg flex items-center justify-center">
                 <Database className="h-4 w-4 text-white" />
               </div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">DuckHub</h1>
+              <h1 className="text-xl font-bold gradient-text">DuckHub</h1>
             </div>
             <Button
               variant="ghost"
@@ -86,8 +86,8 @@ export default function Layout({ children }: LayoutProps) {
                       className={cn(
                         "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200",
                         isActive
-                          ? "bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-200 shadow-sm"
-                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                          ? "bg-primary/10 text-primary border-l-4 border-primary shadow-sm"
+                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                       )}
                       onClick={() => setSidebarOpen(false)}
                     >
@@ -114,11 +114,11 @@ export default function Layout({ children }: LayoutProps) {
               "flex items-center gap-2 transition-all duration-300",
               sidebarCollapsed ? "justify-center" : ""
             )}>
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 supabase-gradient rounded-lg flex items-center justify-center">
                 <Database className="h-4 w-4 text-white" />
               </div>
               {!sidebarCollapsed && (
-                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">
+                <h1 className="text-xl font-bold gradient-text">
                   DuckHub
                 </h1>
               )}
@@ -157,8 +157,8 @@ export default function Layout({ children }: LayoutProps) {
                         "flex items-center rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 group relative",
                         sidebarCollapsed ? "justify-center" : "gap-x-3",
                         isActive
-                          ? "bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-200 shadow-sm"
-                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                          ? "bg-primary/10 text-primary border-l-4 border-primary shadow-sm"
+                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                       )}
                       title={sidebarCollapsed ? item.name : undefined}
                     >
@@ -237,7 +237,7 @@ export default function Layout({ children }: LayoutProps) {
                 size="icon"
                 className="hover:bg-gray-100 rounded-full"
               >
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-500 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 supabase-gradient rounded-full flex items-center justify-center">
                   <User className="h-4 w-4 text-white" />
                 </div>
               </Button>

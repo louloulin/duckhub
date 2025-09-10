@@ -48,9 +48,14 @@
     @apply transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
   }
 
-  /* 渐变文字 */
+  /* Supabase风格渐变文字 */
   .gradient-text {
-    @apply bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-green-500 to-emerald-500 bg-clip-text text-transparent;
+  }
+
+  /* Supabase品牌渐变 */
+  .supabase-gradient {
+    background: linear-gradient(135deg, #3ECF8E 0%, #249361 100%);
   }
 
   /* 脉冲动画 */
@@ -119,52 +124,97 @@
       transform: scale(1);
     }
   }
+
+  /* Supabase风格组件类 */
+  .supabase-card {
+    @apply bg-card border border-border rounded-lg shadow-sm hover:shadow-md transition-all duration-200;
+  }
+
+  .supabase-button {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 font-medium transition-colors;
+  }
+
+  .supabase-input {
+    @apply bg-background border border-border rounded-md px-3 py-2 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all;
+  }
+
+  .supabase-sidebar {
+    @apply bg-card border-r border-border;
+  }
+
+  .supabase-nav-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground;
+  }
+
+  .supabase-nav-item.active {
+    @apply bg-primary/10 text-primary border-l-2 border-primary;
+  }
 }
 
 @layer base {
   :root {
+    /* Supabase风格 - 浅色模式 */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
+
+    /* Supabase绿色主题 */
+    --primary: 158 64% 52%;           /* #3ECF8E - Supabase绿 */
+    --primary-foreground: 0 0% 100%;
+
     --secondary: 210 40% 96%;
     --secondary-foreground: 222.2 84% 4.9%;
     --muted: 210 40% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
+    --accent: 158 64% 52%;            /* 绿色强调 */
+    --accent-foreground: 0 0% 100%;
+
+    /* 状态色彩 */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
+    --success: 158 64% 52%;           /* 成功 - 绿色 */
+    --warning: 45 93% 58%;            /* 警告 - 黄色 */
+    --info: 217 91% 60%;              /* 信息 - 蓝色 */
+
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --ring: 158 64% 52%;              /* 聚焦环 - 绿色 */
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    /* Supabase风格 - 深色模式优先 */
+    --background: 222 84% 5%;         /* #0f1419 - Supabase深色背景 */
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 222 84% 5%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 222 84% 5%;
     --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
+
+    /* Supabase绿色主题 - 深色模式 */
+    --primary: 158 64% 52%;           /* #3ECF8E - 保持绿色 */
+    --primary-foreground: 222 84% 5%;
+
+    --secondary: 217 32% 17%;         /* #1f2937 */
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
+    --muted: 217 32% 17%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 158 64% 52%;            /* 绿色强调 */
+    --accent-foreground: 222 84% 5%;
+
+    /* 深色模式状态色彩 */
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 94.1%;
+    --success: 158 64% 52%;           /* 成功 - 绿色 */
+    --warning: 45 93% 58%;            /* 警告 - 黄色 */
+    --info: 217 91% 60%;              /* 信息 - 蓝色 */
+
+    --border: 217 32% 17%;            /* #1f2937 */
+    --input: 217 32% 17%;
+    --ring: 158 64% 52%;              /* 聚焦环 - 绿色 */
   }
 }
 
