@@ -14,6 +14,7 @@ pub mod stream_processor;  // Enhanced stream processing engine
 pub mod risk_engine;  // Real-time risk monitoring engine
 pub mod memory_optimization;  // Memory pool and object pool optimization
 pub mod realtime_financial_processor;  // Integrated real-time financial processor
+pub mod realtime_processor;  // Advanced real-time data processing
 pub mod pool;
 pub mod query;
 pub mod lake;
@@ -35,6 +36,7 @@ pub use stream_processor::{StreamProcessor, StreamProcessorConfig, StreamRecord,
 pub use risk_engine::{RealTimeRiskEngine, RiskEngineConfig, PortfolioUpdate, RiskMetrics, RiskAlert};
 pub use memory_optimization::{MemoryPool, MemoryManager, ObjectPool, BufferPool, StringPool};
 pub use realtime_financial_processor::{RealTimeFinancialProcessor, RealTimeProcessorConfig, FinancialData, TradeData};
+pub use realtime_processor::{RealtimeProcessor, RealtimeConfig, Event, EventType, Alert, AlertRule};
 pub use real_duckdb::{Connection, ConnectionConfig};
 pub use schema::{SchemaManager};
 pub use cache::{QueryCacheImpl, CacheManager};

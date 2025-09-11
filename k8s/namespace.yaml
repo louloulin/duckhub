@@ -1,0 +1,280 @@
+# DuckHub Kubernetes 命名空间配置
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: duckhub
+  labels:
+    name: duckhub
+    app.kubernetes.io/name: duckhub
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: platform
+    app.kubernetes.io/part-of: duckhub
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    description: "DuckHub AI-Powered Financial Data Platform"
+    contact: "team@duckhub.dev"
+    documentation: "https://docs.duckhub.dev"
+---
+# 资源配额
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: duckhub-quota
+  namespace: duckhub
+spec:
+  hard:
+    # 计算资源限制
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    
+    # 存储资源限制
+    requests.storage: 100Gi
+    persistentvolumeclaims: "10"
+    
+    # 对象数量限制
+    pods: "50"
+    services: "20"
+    secrets: "20"
+    configmaps: "20"
+    deployments.apps: "20"
+    statefulsets.apps: "10"
+    
+    # 网络资源限制
+    services.loadbalancers: "5"
+    services.nodeports: "10"
+---
+# 限制范围
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: duckhub-limits
+  namespace: duckhub
+spec:
+  limits:
+  # Pod 限制
+  - type: Pod
+    max:
+      cpu: "2"
+      memory: 4Gi
+    min:
+      cpu: 100m
+      memory: 128Mi
+    
+  # 容器限制
+  - type: Container
+    default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    max:
+      cpu: "2"
+      memory: 4Gi
+    min:
+      cpu: 50m
+      memory: 64Mi
+    
+  # PVC 限制
+  - type: PersistentVolumeClaim
+    max:
+      storage: 50Gi
+    min:
+      storage: 1Gi
+---
+# 网络策略
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: duckhub-network-policy
+  namespace: duckhub
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # 入站规则
+  ingress:
+  # 允许同命名空间内的通信
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: duckhub
+  
+  # 允许来自 ingress-nginx 的流量
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # 允许来自监控系统的流量
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  
+  # 出站规则
+  egress:
+  # 允许 DNS 查询
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  
+  # 允许访问外部 API (DeepSeek, 等)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+  
+  # 允许访问数据库
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # 允许访问 Redis
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+---
+# 服务账户
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: duckhub-service-account
+  namespace: duckhub
+  labels:
+    app.kubernetes.io/name: duckhub
+    app.kubernetes.io/component: service-account
+automountServiceAccountToken: true
+---
+# 角色
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: duckhub-role
+  namespace: duckhub
+rules:
+# 允许读取配置和密钥
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+
+# 允许读取 Pod 信息 (用于服务发现)
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+
+# 允许创建事件
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+---
+# 角色绑定
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: duckhub-role-binding
+  namespace: duckhub
+subjects:
+- kind: ServiceAccount
+  name: duckhub-service-account
+  namespace: duckhub
+roleRef:
+  kind: Role
+  name: duckhub-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Pod 安全策略 (如果启用了 PSP)
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: duckhub-psp
+  namespace: duckhub
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+---
+# Pod 中断预算
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: duckhub-api-gateway-pdb
+  namespace: duckhub
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: duckhub-api-gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: duckhub-query-service-pdb
+  namespace: duckhub
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: duckhub-query-service
+---
+# 优先级类
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: duckhub-high-priority
+value: 1000
+globalDefault: false
+description: "High priority class for critical DuckHub services"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: duckhub-medium-priority
+value: 500
+globalDefault: false
+description: "Medium priority class for standard DuckHub services"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: duckhub-low-priority
+value: 100
+globalDefault: false
+description: "Low priority class for background DuckHub services"

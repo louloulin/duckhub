@@ -1,0 +1,367 @@
+# DuckHub 生产级 Docker Compose 配置
+# 包含所有微服务、数据库、缓存和监控组件
+
+version: '3.8'
+
+# ============================================================================
+# 网络配置
+# ============================================================================
+networks:
+  duckhub-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+  monitoring-network:
+    driver: bridge
+    internal: true
+
+# ============================================================================
+# 数据卷配置
+# ============================================================================
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  duckhub-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  elasticsearch-data:
+    driver: local
+
+# ============================================================================
+# 服务配置
+# ============================================================================
+services:
+  # --------------------------------------------------------------------------
+  # 数据库服务
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: duckhub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: duckhub
+      POSTGRES_USER: duckhub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-duckhub_secure_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - duckhub-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U duckhub -d duckhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # --------------------------------------------------------------------------
+  # Redis 缓存
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: duckhub-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secure_password}
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - duckhub-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # --------------------------------------------------------------------------
+  # DuckHub 核心服务
+  # --------------------------------------------------------------------------
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: duckhub-api-gateway
+    restart: unless-stopped
+    environment:
+      DUCKHUB_ENV: production
+      DUCKHUB_DATABASE_URL: postgresql://duckhub:${POSTGRES_PASSWORD:-duckhub_secure_password}@postgres:5432/duckhub
+      DUCKHUB_REDIS_URL: redis://:${REDIS_PASSWORD:-redis_secure_password}@redis:6379
+      DUCKHUB_LOG_LEVEL: info
+      DUCKHUB_CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,https://duckhub.dev}
+      DUCKHUB_JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_key_here}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+    ports:
+      - "8080:8080"
+    networks:
+      - duckhub-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    volumes:
+      - duckhub-data:/app/data
+      - ./logs:/app/logs
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: duckhub-auth-service
+    restart: unless-stopped
+    environment:
+      DUCKHUB_ENV: production
+      DUCKHUB_DATABASE_URL: postgresql://duckhub:${POSTGRES_PASSWORD:-duckhub_secure_password}@postgres:5432/duckhub
+      DUCKHUB_REDIS_URL: redis://:${REDIS_PASSWORD:-redis_secure_password}@redis:6379
+      DUCKHUB_JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_key_here}
+      DUCKHUB_JWT_EXPIRY: 24h
+    ports:
+      - "8081:8081"
+    networks:
+      - duckhub-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["auth-service"]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+  query-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: duckhub-query-service
+    restart: unless-stopped
+    environment:
+      DUCKHUB_ENV: production
+      DUCKHUB_DATABASE_URL: postgresql://duckhub:${POSTGRES_PASSWORD:-duckhub_secure_password}@postgres:5432/duckhub
+      DUCKHUB_DUCKDB_PATH: /app/data/duckhub.duckdb
+      DUCKHUB_QUERY_TIMEOUT: 300s
+      DUCKHUB_MAX_RESULT_SIZE: 100MB
+    ports:
+      - "8082:8082"
+    networks:
+      - duckhub-network
+    depends_on:
+      - postgres
+    command: ["query-service"]
+    volumes:
+      - duckhub-data:/app/data
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+
+  data-ingestion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: duckhub-data-ingestion
+    restart: unless-stopped
+    environment:
+      DUCKHUB_ENV: production
+      DUCKHUB_DATABASE_URL: postgresql://duckhub:${POSTGRES_PASSWORD:-duckhub_secure_password}@postgres:5432/duckhub
+      DUCKHUB_DUCKDB_PATH: /app/data/duckhub.duckdb
+      DUCKHUB_UPLOAD_PATH: /app/data/uploads
+      DUCKHUB_MAX_FILE_SIZE: 100MB
+    ports:
+      - "8083:8083"
+    networks:
+      - duckhub-network
+    depends_on:
+      - postgres
+    command: ["data-ingestion"]
+    volumes:
+      - duckhub-data:/app/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  ai-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: duckhub-ai-agent
+    restart: unless-stopped
+    environment:
+      DUCKHUB_ENV: production
+      DUCKHUB_DATABASE_URL: postgresql://duckhub:${POSTGRES_PASSWORD:-duckhub_secure_password}@postgres:5432/duckhub
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DUCKHUB_AI_MODEL: deepseek-chat
+      DUCKHUB_AI_MAX_TOKENS: 4000
+    ports:
+      - "8084:8084"
+    networks:
+      - duckhub-network
+    depends_on:
+      - postgres
+    command: ["ai-agent"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # --------------------------------------------------------------------------
+  # 监控和日志服务
+  # --------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: duckhub-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - duckhub-network
+      - monitoring-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: duckhub-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: false
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - duckhub-network
+      - monitoring-network
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+  # --------------------------------------------------------------------------
+  # 负载均衡器 (生产环境)
+  # --------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: duckhub-nginx
+    restart: unless-stopped
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - duckhub-network
+    depends_on:
+      - api-gateway
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
+
+# ============================================================================
+# 开发环境配置 (docker-compose.dev.yml)
+# ============================================================================
+# 使用: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+# ============================================================================
+# 生产环境配置 (docker-compose.prod.yml)
+# ============================================================================
+# 使用: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+# ============================================================================
+# 环境变量说明
+# ============================================================================
+# 创建 .env 文件并设置以下变量:
+# POSTGRES_PASSWORD=your_secure_postgres_password
+# REDIS_PASSWORD=your_secure_redis_password
+# JWT_SECRET=your_jwt_secret_key_minimum_32_characters
+# DEEPSEEK_API_KEY=your_deepseek_api_key
+# CORS_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+# GRAFANA_PASSWORD=your_grafana_admin_password
+
+# ============================================================================
+# 使用说明
+# ============================================================================
+# 1. 启动所有服务:
+#    docker-compose up -d
+#
+# 2. 查看日志:
+#    docker-compose logs -f [service_name]
+#
+# 3. 停止所有服务:
+#    docker-compose down
+#
+# 4. 重建并启动:
+#    docker-compose up --build -d
+#
+# 5. 扩展服务:
+#    docker-compose up -d --scale query-service=3
+#
+# 6. 备份数据:
+#    docker-compose exec postgres pg_dump -U duckhub duckhub > backup.sql
+#
+# 7. 恢复数据:
+#    docker-compose exec -T postgres psql -U duckhub duckhub < backup.sql

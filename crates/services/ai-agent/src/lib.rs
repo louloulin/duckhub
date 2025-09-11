@@ -20,6 +20,8 @@ pub mod chat;
 pub mod rig_agent;
 // 基于Rig框架的RAG系统实现
 pub mod rig_rag;
+// 高级AI助手功能
+pub mod advanced_ai;
 // 传统RAG功能（暂时禁用，等迁移完成后删除）
 // pub mod rag_agent;
 
@@ -40,6 +42,8 @@ pub use chat::*;
 pub use rig_agent::*;
 // 导出新的RAG系统
 pub use rig_rag::*;
+// 导出高级AI功能
+pub use advanced_ai::*;
 
 /// 聊天请求
 #[derive(Debug, Clone, Serialize, Deserialize)]

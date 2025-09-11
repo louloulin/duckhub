@@ -158,12 +158,12 @@ impl QueryOptimizer {
         }
     }
 
-    /// Optimize a query
+    /// Optimize a query with advanced techniques
     pub fn optimize_query(&self, query: &Query) -> Result<Query> {
         let mut optimized_sql = query.sql.clone();
         let mut applied_optimizations = Vec::new();
 
-        // Apply optimization rules
+        // 1. 基础优化规则
         for rule in &self.rules {
             if let Ok(new_sql) = self.apply_rule(rule, &optimized_sql) {
                 if new_sql != optimized_sql {
@@ -172,6 +172,12 @@ impl QueryOptimizer {
                 }
             }
         }
+
+        // 2. 高级查询优化
+        optimized_sql = self.apply_advanced_optimizations(&optimized_sql, &mut applied_optimizations)?;
+
+        // 3. 特定于DuckDB的优化
+        optimized_sql = self.apply_duckdb_optimizations(&optimized_sql, &mut applied_optimizations)?;
 
         if !applied_optimizations.is_empty() {
             debug!("Applied optimizations: {:?}", applied_optimizations);
@@ -187,6 +193,169 @@ impl QueryOptimizer {
         })
     }
 
+    /// 应用高级查询优化技术
+    fn apply_advanced_optimizations(&self, sql: &str, applied: &mut Vec<String>) -> Result<String> {
+        let mut optimized = sql.to_string();
+
+        // 1. 谓词下推优化
+        if let Ok(new_sql) = self.apply_predicate_pushdown(&optimized) {
+            if new_sql != optimized {
+                optimized = new_sql;
+                applied.push("predicate_pushdown".to_string());
+            }
+        }
+
+        // 2. 投影下推优化
+        if let Ok(new_sql) = self.apply_projection_pushdown(&optimized) {
+            if new_sql != optimized {
+                optimized = new_sql;
+                applied.push("projection_pushdown".to_string());
+            }
+        }
+
+        // 3. JOIN重排序优化
+        if let Ok(new_sql) = self.apply_join_reordering(&optimized) {
+            if new_sql != optimized {
+                optimized = new_sql;
+                applied.push("join_reordering".to_string());
+            }
+        }
+
+        // 4. 子查询优化
+        if let Ok(new_sql) = self.apply_subquery_optimization(&optimized) {
+            if new_sql != optimized {
+                optimized = new_sql;
+                applied.push("subquery_optimization".to_string());
+            }
+        }
+
+        Ok(optimized)
+    }
+
+    /// 应用DuckDB特定优化
+    fn apply_duckdb_optimizations(&self, sql: &str, applied: &mut Vec<String>) -> Result<String> {
+        let mut optimized = sql.to_string();
+
+        // 1. 向量化操作优化
+        if let Ok(new_sql) = self.apply_vectorization_hints(&optimized) {
+            if new_sql != optimized {
+                optimized = new_sql;
+                applied.push("vectorization_hints".to_string());
+            }
+        }
+
+        // 2. 并行执行优化
+        if let Ok(new_sql) = self.apply_parallel_execution(&optimized) {
+            if new_sql != optimized {
+                optimized = new_sql;
+                applied.push("parallel_execution".to_string());
+            }
+        }
+
+        // 3. 内存优化
+        if let Ok(new_sql) = self.apply_memory_optimization(&optimized) {
+            if new_sql != optimized {
+                optimized = new_sql;
+                applied.push("memory_optimization".to_string());
+            }
+        }
+
+        Ok(optimized)
+    }
+
+    /// 谓词下推优化
+    fn apply_predicate_pushdown(&self, sql: &str) -> Result<String> {
+        // 简化实现：将WHERE条件尽可能推到子查询中
+        let sql_upper = sql.to_uppercase();
+
+        if sql_upper.contains("WHERE") && sql_upper.contains("SELECT") {
+            // 这里应该有更复杂的SQL解析和重写逻辑
+            // 目前返回原始SQL，实际实现需要SQL解析器
+            Ok(sql.to_string())
+        } else {
+            Ok(sql.to_string())
+        }
+    }
+
+    /// 投影下推优化
+    fn apply_projection_pushdown(&self, sql: &str) -> Result<String> {
+        // 简化实现：只选择需要的列
+        let sql_upper = sql.to_uppercase();
+
+        if sql_upper.contains("SELECT *") && sql_upper.contains("FROM") {
+            // 建议：将SELECT *替换为具体列名
+            // 实际实现需要分析查询计划
+            Ok(sql.to_string())
+        } else {
+            Ok(sql.to_string())
+        }
+    }
+
+    /// JOIN重排序优化
+    fn apply_join_reordering(&self, sql: &str) -> Result<String> {
+        // 简化实现：基于表大小重排序JOIN
+        let sql_upper = sql.to_uppercase();
+
+        if sql_upper.contains("JOIN") {
+            // 实际实现需要统计信息来决定最优JOIN顺序
+            Ok(sql.to_string())
+        } else {
+            Ok(sql.to_string())
+        }
+    }
+
+    /// 子查询优化
+    fn apply_subquery_optimization(&self, sql: &str) -> Result<String> {
+        // 简化实现：将相关子查询转换为JOIN
+        let sql_upper = sql.to_uppercase();
+
+        if sql_upper.contains("EXISTS") || sql_upper.contains("IN (SELECT") {
+            // 实际实现需要复杂的SQL重写
+            Ok(sql.to_string())
+        } else {
+            Ok(sql.to_string())
+        }
+    }
+
+    /// 向量化操作优化
+    fn apply_vectorization_hints(&self, sql: &str) -> Result<String> {
+        // DuckDB特定：添加向量化提示
+        let sql_upper = sql.to_uppercase();
+
+        if sql_upper.contains("GROUP BY") || sql_upper.contains("ORDER BY") {
+            // 可以添加PRAGMA设置来优化向量化
+            Ok(format!("PRAGMA enable_optimizer=true; {}", sql))
+        } else {
+            Ok(sql.to_string())
+        }
+    }
+
+    /// 并行执行优化
+    fn apply_parallel_execution(&self, sql: &str) -> Result<String> {
+        // DuckDB特定：启用并行执行
+        let sql_upper = sql.to_uppercase();
+
+        if sql_upper.contains("SELECT") && (sql_upper.contains("FROM") || sql_upper.contains("JOIN")) {
+            // 设置并行线程数
+            Ok(format!("PRAGMA threads=4; {}", sql))
+        } else {
+            Ok(sql.to_string())
+        }
+    }
+
+    /// 内存优化
+    fn apply_memory_optimization(&self, sql: &str) -> Result<String> {
+        // DuckDB特定：内存使用优化
+        let sql_upper = sql.to_uppercase();
+
+        if sql_upper.contains("ORDER BY") || sql_upper.contains("GROUP BY") {
+            // 设置内存限制和临时目录
+            Ok(format!("PRAGMA memory_limit='2GB'; PRAGMA temp_directory='/tmp'; {}", sql))
+        } else {
+            Ok(sql.to_string())
+        }
+    }
+
     /// Apply a specific optimization rule
     fn apply_rule(&self, rule: &OptimizationRule, sql: &str) -> Result<String> {
         match rule {
@@ -197,21 +366,7 @@ impl QueryOptimizer {
         }
     }
 
-    /// Apply predicate pushdown optimization
-    fn apply_predicate_pushdown(&self, sql: &str) -> Result<String> {
-        // Simple implementation - in practice, this would use a proper SQL parser
-        Ok(sql.to_string())
-    }
 
-    /// Apply projection pushdown optimization
-    fn apply_projection_pushdown(&self, sql: &str) -> Result<String> {
-        Ok(sql.to_string())
-    }
-
-    /// Apply join reordering optimization
-    fn apply_join_reordering(&self, sql: &str) -> Result<String> {
-        Ok(sql.to_string())
-    }
 
     /// Apply constant folding optimization
     fn apply_constant_folding(&self, sql: &str) -> Result<String> {

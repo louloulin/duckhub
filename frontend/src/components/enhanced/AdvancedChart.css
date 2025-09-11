@@ -1,0 +1,365 @@
+/* 高级图表组件样式 */
+.advanced-chart-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin: 16px 0;
+  transition: all 0.3s ease;
+}
+
+.advanced-chart-container:hover {
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.15);
+}
+
+.advanced-chart-container.dark {
+  background: #1a1a1a;
+  color: white;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* 图表标题和副标题 */
+.chart-subtitle {
+  text-align: center;
+  color: #6c757d;
+  font-size: 14px;
+  margin-bottom: 16px;
+  font-style: italic;
+}
+
+.advanced-chart-container.dark .chart-subtitle {
+  color: #adb5bd;
+}
+
+/* 图表包装器 */
+.chart-wrapper {
+  position: relative;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+/* 图表工具栏 */
+.chart-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid #e9ecef;
+  margin-top: 16px;
+}
+
+.advanced-chart-container.dark .chart-toolbar {
+  border-top-color: #495057;
+}
+
+.chart-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.chart-btn {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+}
+
+.chart-btn:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+  transform: translateY(-1px);
+}
+
+.chart-btn:active {
+  transform: translateY(0);
+}
+
+.advanced-chart-container.dark .chart-btn {
+  background: #343a40;
+  border-color: #495057;
+  color: white;
+}
+
+.advanced-chart-container.dark .chart-btn:hover {
+  background: #495057;
+  border-color: #6c757d;
+}
+
+.chart-info {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.advanced-chart-container.dark .chart-info {
+  color: #adb5bd;
+}
+
+.chart-info span {
+  padding: 4px 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.advanced-chart-container.dark .chart-info span {
+  background: #343a40;
+}
+
+/* 加载状态 */
+.chart-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #dee2e6;
+}
+
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: #6c757d;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-spinner p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* 错误状态 */
+.chart-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff5f5;
+  border: 2px dashed #fed7d7;
+  border-radius: 8px;
+}
+
+.error-content {
+  text-align: center;
+  color: #e53e3e;
+}
+
+.error-icon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.error-content p {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.error-content small {
+  font-size: 12px;
+  color: #a0aec0;
+}
+
+/* 无数据状态 */
+.chart-no-data {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7fafc;
+  border: 2px dashed #e2e8f0;
+  border-radius: 8px;
+}
+
+.no-data-content {
+  text-align: center;
+  color: #718096;
+}
+
+.no-data-icon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+
+.no-data-content p {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.no-data-content small {
+  font-size: 12px;
+  color: #a0aec0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .advanced-chart-container {
+    padding: 16px;
+    margin: 12px 0;
+  }
+  
+  .chart-toolbar {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .chart-controls {
+    justify-content: center;
+  }
+  
+  .chart-info {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .chart-btn {
+    min-width: 32px;
+    height: 32px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .advanced-chart-container {
+    padding: 12px;
+    margin: 8px 0;
+  }
+  
+  .chart-subtitle {
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+  
+  .chart-controls {
+    gap: 6px;
+  }
+  
+  .chart-btn {
+    min-width: 28px;
+    height: 28px;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  
+  .chart-info {
+    gap: 6px;
+  }
+  
+  .chart-info span {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+}
+
+/* 图表动画 */
+.chart-wrapper {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 交互状态 */
+.chart-wrapper:hover {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease;
+}
+
+/* 工具提示样式增强 */
+.advanced-chart-container canvas {
+  border-radius: 8px;
+}
+
+/* 图例样式增强 */
+.advanced-chart-container .chartjs-legend {
+  margin-bottom: 16px;
+}
+
+.advanced-chart-container .chartjs-legend ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.advanced-chart-container .chartjs-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.advanced-chart-container .chartjs-legend li:hover {
+  opacity: 0.8;
+}
+
+.advanced-chart-container .chartjs-legend li span {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* 高性能优化 */
+.chart-wrapper * {
+  will-change: transform;
+}
+
+.advanced-chart-container {
+  contain: layout style paint;
+}
+
+/* 打印样式 */
+@media print {
+  .advanced-chart-container {
+    box-shadow: none;
+    border: 1px solid #dee2e6;
+  }
+  
+  .chart-toolbar {
+    display: none;
+  }
+}

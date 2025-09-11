@@ -162,12 +162,39 @@ impl DataConnector for MySQLConnector {
             return Ok(());
         }
 
-        // TODO: 实现真实的MySQL连接逻辑
-        // 这里是Mock实现
-        self.is_connected = true;
-        self.stats.connection_status = ConnectionStatus::Connected;
-        
-        Ok(())
+        // 实现真实的MySQL连接逻辑
+        let connection_string = format!(
+            "mysql://{}:{}@{}:{}/{}",
+            self.config.username.as_ref().unwrap_or(&"root".to_string()),
+            self.config.password.as_ref().unwrap_or(&"".to_string()),
+            self.config.host.as_ref().unwrap_or(&"localhost".to_string()),
+            self.config.port.unwrap_or(3306),
+            self.config.database.as_ref().unwrap_or(&"test".to_string())
+        );
+
+        // 使用mysql_async库建立连接
+        match mysql_async::Pool::new(&connection_string) {
+            Ok(pool) => {
+                // 测试连接
+                let mut conn = pool.get_conn().await
+                    .map_err(|e| DuckHubError::database(format!("MySQL连接失败: {}", e)))?;
+
+                // 执行简单查询验证连接
+                let _: Vec<mysql_async::Row> = conn.query("SELECT 1").await
+                    .map_err(|e| DuckHubError::database(format!("MySQL连接验证失败: {}", e)))?;
+
+                self.is_connected = true;
+                self.stats.connection_status = ConnectionStatus::Connected;
+                self.stats.last_connected_at = Some(Utc::now());
+
+                info!("MySQL连接器 '{}' 连接成功", self.name);
+                Ok(())
+            }
+            Err(e) => {
+                self.stats.connection_status = ConnectionStatus::Failed;
+                Err(DuckHubError::database(format!("MySQL连接池创建失败: {}", e)))
+            }
+        }
     }
 
     async fn disconnect(&mut self) -> Result<()> {
@@ -201,35 +228,77 @@ impl DataConnector for MySQLConnector {
         })
     }
 
-    async fn read_data(&self, _query: &str) -> Result<Vec<DataRecord>> {
+    async fn read_data(&self, query: &str) -> Result<Vec<DataRecord>> {
         if !self.is_connected {
             return Err(DuckHubError::database("MySQL连接未建立"));
         }
 
-        // TODO: 实现真实的数据读取逻辑
-        // 这里是Mock实现
-        let mock_records = vec![
-            DataRecord::new(
-                "mysql_source".to_string(),
-                serde_json::json!({
-                    "id": 1,
-                    "name": "测试记录1",
-                    "value": 100.0,
-                    "created_at": Utc::now()
-                })
-            ),
-            DataRecord::new(
-                "mysql_source".to_string(),
-                serde_json::json!({
-                    "id": 2,
-                    "name": "测试记录2",
-                    "value": 200.0,
-                    "created_at": Utc::now()
-                })
-            ),
-        ];
+        // 实现真实的MySQL数据读取逻辑
+        let connection_string = format!(
+            "mysql://{}:{}@{}:{}/{}",
+            self.config.username.as_ref().unwrap_or(&"root".to_string()),
+            self.config.password.as_ref().unwrap_or(&"".to_string()),
+            self.config.host.as_ref().unwrap_or(&"localhost".to_string()),
+            self.config.port.unwrap_or(3306),
+            self.config.database.as_ref().unwrap_or(&"test".to_string())
+        );
 
-        Ok(mock_records)
+        let pool = mysql_async::Pool::new(&connection_string)
+            .map_err(|e| DuckHubError::database(format!("MySQL连接池创建失败: {}", e)))?;
+
+        let mut conn = pool.get_conn().await
+            .map_err(|e| DuckHubError::database(format!("获取MySQL连接失败: {}", e)))?;
+
+        // 执行查询
+        let rows: Vec<mysql_async::Row> = conn.query(query).await
+            .map_err(|e| DuckHubError::database(format!("MySQL查询执行失败: {}", e)))?;
+
+        let mut records = Vec::new();
+
+        for row in rows {
+            // 将MySQL行转换为JSON对象
+            let mut json_obj = serde_json::Map::new();
+
+            // 获取列信息
+            let columns = row.columns_ref();
+            for (i, column) in columns.iter().enumerate() {
+                let column_name = column.name_str();
+                let value = match row.get_opt::<mysql_async::Value, usize>(i) {
+                    Some(Ok(mysql_async::Value::NULL)) => serde_json::Value::Null,
+                    Some(Ok(mysql_async::Value::Bytes(bytes))) => {
+                        serde_json::Value::String(String::from_utf8_lossy(&bytes).to_string())
+                    },
+                    Some(Ok(mysql_async::Value::Int(i))) => serde_json::Value::Number(serde_json::Number::from(i)),
+                    Some(Ok(mysql_async::Value::UInt(u))) => serde_json::Value::Number(serde_json::Number::from(u)),
+                    Some(Ok(mysql_async::Value::Float(f))) => {
+                        serde_json::Value::Number(serde_json::Number::from_f64(f as f64).unwrap_or(serde_json::Number::from(0)))
+                    },
+                    Some(Ok(mysql_async::Value::Double(d))) => {
+                        serde_json::Value::Number(serde_json::Number::from_f64(d).unwrap_or(serde_json::Number::from(0)))
+                    },
+                    Some(Ok(mysql_async::Value::Date(year, month, day, hour, minute, second, _))) => {
+                        let datetime = format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second);
+                        serde_json::Value::String(datetime)
+                    },
+                    _ => serde_json::Value::Null,
+                };
+
+                json_obj.insert(column_name.to_string(), value);
+            }
+
+            let record = DataRecord::new(
+                self.name.clone(),
+                serde_json::Value::Object(json_obj)
+            );
+            records.push(record);
+        }
+
+        // 更新统计信息
+        self.stats.records_processed += records.len() as u64;
+        self.stats.last_processed_at = Some(Utc::now());
+
+        info!("MySQL连接器 '{}' 成功读取 {} 条记录", self.name, records.len());
+        Ok(records)
     }
 
     async fn health_check(&self) -> Result<bool> {
@@ -285,11 +354,47 @@ impl DataConnector for PostgreSQLConnector {
             return Ok(());
         }
 
-        // TODO: 实现真实的PostgreSQL连接逻辑
-        self.is_connected = true;
-        self.stats.connection_status = ConnectionStatus::Connected;
-        
-        Ok(())
+        // 实现真实的PostgreSQL连接逻辑
+        let connection_string = format!(
+            "postgresql://{}:{}@{}:{}/{}",
+            self.config.username.as_ref().unwrap_or(&"postgres".to_string()),
+            self.config.password.as_ref().unwrap_or(&"".to_string()),
+            self.config.host.as_ref().unwrap_or(&"localhost".to_string()),
+            self.config.port.unwrap_or(5432),
+            self.config.database.as_ref().unwrap_or(&"postgres".to_string())
+        );
+
+        // 使用tokio-postgres建立连接
+        match tokio_postgres::connect(&connection_string, tokio_postgres::NoTls).await {
+            Ok((client, connection)) => {
+                // 在后台运行连接
+                tokio::spawn(async move {
+                    if let Err(e) = connection.await {
+                        eprintln!("PostgreSQL连接错误: {}", e);
+                    }
+                });
+
+                // 测试连接
+                match client.query("SELECT 1", &[]).await {
+                    Ok(_) => {
+                        self.is_connected = true;
+                        self.stats.connection_status = ConnectionStatus::Connected;
+                        self.stats.last_connected_at = Some(Utc::now());
+
+                        info!("PostgreSQL连接器 '{}' 连接成功", self.name);
+                        Ok(())
+                    }
+                    Err(e) => {
+                        self.stats.connection_status = ConnectionStatus::Failed;
+                        Err(DuckHubError::database(format!("PostgreSQL连接验证失败: {}", e)))
+                    }
+                }
+            }
+            Err(e) => {
+                self.stats.connection_status = ConnectionStatus::Failed;
+                Err(DuckHubError::database(format!("PostgreSQL连接失败: {}", e)))
+            }
+        }
     }
 
     async fn disconnect(&mut self) -> Result<()> {
@@ -320,25 +425,108 @@ impl DataConnector for PostgreSQLConnector {
         })
     }
 
-    async fn read_data(&self, _query: &str) -> Result<Vec<DataRecord>> {
+    async fn read_data(&self, query: &str) -> Result<Vec<DataRecord>> {
         if !self.is_connected {
             return Err(DuckHubError::database("PostgreSQL连接未建立"));
         }
 
-        // Mock实现
-        let mock_records = vec![
-            DataRecord::new(
-                "postgresql_source".to_string(),
-                serde_json::json!({
-                    "id": 1,
-                    "description": "PostgreSQL测试记录",
-                    "amount": 500.0,
-                    "timestamp": Utc::now()
-                })
-            ),
-        ];
+        // 实现真实的PostgreSQL数据读取逻辑
+        let connection_string = format!(
+            "postgresql://{}:{}@{}:{}/{}",
+            self.config.username.as_ref().unwrap_or(&"postgres".to_string()),
+            self.config.password.as_ref().unwrap_or(&"".to_string()),
+            self.config.host.as_ref().unwrap_or(&"localhost".to_string()),
+            self.config.port.unwrap_or(5432),
+            self.config.database.as_ref().unwrap_or(&"postgres".to_string())
+        );
 
-        Ok(mock_records)
+        let (client, connection) = tokio_postgres::connect(&connection_string, tokio_postgres::NoTls).await
+            .map_err(|e| DuckHubError::database(format!("PostgreSQL连接失败: {}", e)))?;
+
+        // 在后台运行连接
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("PostgreSQL连接错误: {}", e);
+            }
+        });
+
+        // 执行查询
+        let rows = client.query(query, &[]).await
+            .map_err(|e| DuckHubError::database(format!("PostgreSQL查询执行失败: {}", e)))?;
+
+        let mut records = Vec::new();
+
+        for row in rows {
+            let mut json_obj = serde_json::Map::new();
+
+            // 遍历所有列
+            for (i, column) in row.columns().iter().enumerate() {
+                let column_name = column.name();
+
+                // 根据PostgreSQL类型转换为JSON值
+                let value = match column.type_() {
+                    &tokio_postgres::types::Type::BOOL => {
+                        row.try_get::<_, Option<bool>>(i)
+                            .unwrap_or(None)
+                            .map(serde_json::Value::Bool)
+                            .unwrap_or(serde_json::Value::Null)
+                    },
+                    &tokio_postgres::types::Type::INT2 | &tokio_postgres::types::Type::INT4 => {
+                        row.try_get::<_, Option<i32>>(i)
+                            .unwrap_or(None)
+                            .map(|v| serde_json::Value::Number(serde_json::Number::from(v)))
+                            .unwrap_or(serde_json::Value::Null)
+                    },
+                    &tokio_postgres::types::Type::INT8 => {
+                        row.try_get::<_, Option<i64>>(i)
+                            .unwrap_or(None)
+                            .map(|v| serde_json::Value::Number(serde_json::Number::from(v)))
+                            .unwrap_or(serde_json::Value::Null)
+                    },
+                    &tokio_postgres::types::Type::FLOAT4 | &tokio_postgres::types::Type::FLOAT8 => {
+                        row.try_get::<_, Option<f64>>(i)
+                            .unwrap_or(None)
+                            .and_then(|v| serde_json::Number::from_f64(v))
+                            .map(serde_json::Value::Number)
+                            .unwrap_or(serde_json::Value::Null)
+                    },
+                    &tokio_postgres::types::Type::TEXT | &tokio_postgres::types::Type::VARCHAR => {
+                        row.try_get::<_, Option<String>>(i)
+                            .unwrap_or(None)
+                            .map(serde_json::Value::String)
+                            .unwrap_or(serde_json::Value::Null)
+                    },
+                    &tokio_postgres::types::Type::TIMESTAMP | &tokio_postgres::types::Type::TIMESTAMPTZ => {
+                        row.try_get::<_, Option<chrono::NaiveDateTime>>(i)
+                            .unwrap_or(None)
+                            .map(|dt| serde_json::Value::String(dt.format("%Y-%m-%d %H:%M:%S").to_string()))
+                            .unwrap_or(serde_json::Value::Null)
+                    },
+                    _ => {
+                        // 对于其他类型，尝试转换为字符串
+                        row.try_get::<_, Option<String>>(i)
+                            .unwrap_or(None)
+                            .map(serde_json::Value::String)
+                            .unwrap_or(serde_json::Value::Null)
+                    }
+                };
+
+                json_obj.insert(column_name.to_string(), value);
+            }
+
+            let record = DataRecord::new(
+                self.name.clone(),
+                serde_json::Value::Object(json_obj)
+            );
+            records.push(record);
+        }
+
+        // 更新统计信息
+        self.stats.records_processed += records.len() as u64;
+        self.stats.last_processed_at = Some(Utc::now());
+
+        info!("PostgreSQL连接器 '{}' 成功读取 {} 条记录", self.name, records.len());
+        Ok(records)
     }
 
     async fn health_check(&self) -> Result<bool> {
@@ -434,22 +622,45 @@ impl DataConnector for FileSystemConnector {
     }
 
     async fn read_data(&self, pattern: &str) -> Result<Vec<DataRecord>> {
-        // TODO: 实现文件模式匹配读取
-        // 这里是简化实现
+        // 实现真实的文件模式匹配读取
         let mut records = Vec::new();
-        
-        // 模拟读取文件
-        let mock_record = DataRecord::new(
-            "filesystem_source".to_string(),
-            serde_json::json!({
-                "file_path": format!("{}/{}", self.base_path, pattern),
-                "content": "文件系统数据",
-                "size": 1024,
-                "modified_at": Utc::now()
-            })
-        );
-        
-        records.push(mock_record);
+
+        // 构建完整路径
+        let full_pattern = if pattern.starts_with('/') {
+            pattern.to_string()
+        } else {
+            format!("{}/{}", self.base_path, pattern)
+        };
+
+        // 使用glob模式匹配文件
+        let paths = glob::glob(&full_pattern)
+            .map_err(|e| DuckHubError::validation(format!("无效的文件模式: {}", e)))?;
+
+        for path_result in paths {
+            match path_result {
+                Ok(path) => {
+                    if path.is_file() {
+                        match self.read_file(&path).await {
+                            Ok(file_records) => records.extend(file_records),
+                            Err(e) => {
+                                warn!("读取文件 {:?} 失败: {}", path, e);
+                                continue;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("文件路径错误: {}", e);
+                    continue;
+                }
+            }
+        }
+
+        // 更新统计信息
+        self.stats.records_processed += records.len() as u64;
+        self.stats.last_processed_at = Some(Utc::now());
+
+        info!("文件系统连接器 '{}' 成功读取 {} 条记录", self.name, records.len());
         Ok(records)
     }
 
@@ -463,5 +674,214 @@ impl DataConnector for FileSystemConnector {
 
     async fn get_stats(&self) -> Result<ConnectorStats> {
         Ok(self.stats.clone())
+    }
+}
+
+impl FileSystemConnector {
+    /// 读取单个文件
+    async fn read_file(&self, path: &std::path::Path) -> Result<Vec<DataRecord>> {
+        let extension = path.extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        match extension.as_str() {
+            "csv" => self.read_csv_file(path).await,
+            "json" => self.read_json_file(path).await,
+            "jsonl" | "ndjson" => self.read_jsonl_file(path).await,
+            _ => self.read_text_file(path).await,
+        }
+    }
+
+    /// 读取CSV文件
+    async fn read_csv_file(&self, path: &std::path::Path) -> Result<Vec<DataRecord>> {
+        let content = tokio::fs::read_to_string(path).await
+            .map_err(|e| DuckHubError::internal(format!("读取CSV文件失败: {}", e)))?;
+
+        let mut reader = csv::Reader::from_reader(content.as_bytes());
+        let headers = reader.headers()
+            .map_err(|e| DuckHubError::validation(format!("CSV头部解析失败: {}", e)))?
+            .clone();
+
+        let mut records = Vec::new();
+
+        for result in reader.records() {
+            match result {
+                Ok(record) => {
+                    let mut json_obj = serde_json::Map::new();
+
+                    for (i, field) in record.iter().enumerate() {
+                        if let Some(header) = headers.get(i) {
+                            // 尝试解析为数字，否则作为字符串
+                            let value = if let Ok(num) = field.parse::<f64>() {
+                                serde_json::Value::Number(
+                                    serde_json::Number::from_f64(num).unwrap_or(serde_json::Number::from(0))
+                                )
+                            } else if field.is_empty() {
+                                serde_json::Value::Null
+                            } else {
+                                serde_json::Value::String(field.to_string())
+                            };
+
+                            json_obj.insert(header.to_string(), value);
+                        }
+                    }
+
+                    // 添加文件元数据
+                    json_obj.insert("_file_path".to_string(),
+                        serde_json::Value::String(path.to_string_lossy().to_string()));
+
+                    let data_record = DataRecord::new(
+                        self.name.clone(),
+                        serde_json::Value::Object(json_obj)
+                    );
+                    records.push(data_record);
+                }
+                Err(e) => {
+                    warn!("CSV记录解析失败: {}", e);
+                    continue;
+                }
+            }
+        }
+
+        Ok(records)
+    }
+
+    /// 读取JSON文件
+    async fn read_json_file(&self, path: &std::path::Path) -> Result<Vec<DataRecord>> {
+        let content = tokio::fs::read_to_string(path).await
+            .map_err(|e| DuckHubError::internal(format!("读取JSON文件失败: {}", e)))?;
+
+        let json_value: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|e| DuckHubError::validation(format!("JSON解析失败: {}", e)))?;
+
+        let mut records = Vec::new();
+
+        match json_value {
+            serde_json::Value::Array(array) => {
+                for item in array {
+                    let mut obj = match item {
+                        serde_json::Value::Object(obj) => obj,
+                        other => {
+                            let mut new_obj = serde_json::Map::new();
+                            new_obj.insert("value".to_string(), other);
+                            new_obj
+                        }
+                    };
+
+                    // 添加文件元数据
+                    obj.insert("_file_path".to_string(),
+                        serde_json::Value::String(path.to_string_lossy().to_string()));
+
+                    let record = DataRecord::new(
+                        self.name.clone(),
+                        serde_json::Value::Object(obj)
+                    );
+                    records.push(record);
+                }
+            }
+            serde_json::Value::Object(mut obj) => {
+                // 添加文件元数据
+                obj.insert("_file_path".to_string(),
+                    serde_json::Value::String(path.to_string_lossy().to_string()));
+
+                let record = DataRecord::new(
+                    self.name.clone(),
+                    serde_json::Value::Object(obj)
+                );
+                records.push(record);
+            }
+            other => {
+                let mut obj = serde_json::Map::new();
+                obj.insert("value".to_string(), other);
+                obj.insert("_file_path".to_string(),
+                    serde_json::Value::String(path.to_string_lossy().to_string()));
+
+                let record = DataRecord::new(
+                    self.name.clone(),
+                    serde_json::Value::Object(obj)
+                );
+                records.push(record);
+            }
+        }
+
+        Ok(records)
+    }
+
+    /// 读取JSONL文件
+    async fn read_jsonl_file(&self, path: &std::path::Path) -> Result<Vec<DataRecord>> {
+        let content = tokio::fs::read_to_string(path).await
+            .map_err(|e| DuckHubError::internal(format!("读取JSONL文件失败: {}", e)))?;
+
+        let mut records = Vec::new();
+
+        for (line_num, line) in content.lines().enumerate() {
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            match serde_json::from_str::<serde_json::Value>(line) {
+                Ok(json_value) => {
+                    let mut obj = match json_value {
+                        serde_json::Value::Object(obj) => obj,
+                        other => {
+                            let mut new_obj = serde_json::Map::new();
+                            new_obj.insert("value".to_string(), other);
+                            new_obj
+                        }
+                    };
+
+                    // 添加文件元数据
+                    obj.insert("_file_path".to_string(),
+                        serde_json::Value::String(path.to_string_lossy().to_string()));
+                    obj.insert("_line_number".to_string(),
+                        serde_json::Value::Number(serde_json::Number::from(line_num + 1)));
+
+                    let record = DataRecord::new(
+                        self.name.clone(),
+                        serde_json::Value::Object(obj)
+                    );
+                    records.push(record);
+                }
+                Err(e) => {
+                    warn!("JSONL第{}行解析失败: {}", line_num + 1, e);
+                    continue;
+                }
+            }
+        }
+
+        Ok(records)
+    }
+
+    /// 读取文本文件
+    async fn read_text_file(&self, path: &std::path::Path) -> Result<Vec<DataRecord>> {
+        let content = tokio::fs::read_to_string(path).await
+            .map_err(|e| DuckHubError::internal(format!("读取文本文件失败: {}", e)))?;
+
+        let metadata = tokio::fs::metadata(path).await
+            .map_err(|e| DuckHubError::internal(format!("获取文件元数据失败: {}", e)))?;
+
+        let mut obj = serde_json::Map::new();
+        obj.insert("content".to_string(), serde_json::Value::String(content));
+        obj.insert("_file_path".to_string(),
+            serde_json::Value::String(path.to_string_lossy().to_string()));
+        obj.insert("_file_size".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(metadata.len())));
+        obj.insert("_modified_at".to_string(),
+            serde_json::Value::String(
+                metadata.modified()
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs()
+                    .to_string()
+            ));
+
+        let record = DataRecord::new(
+            self.name.clone(),
+            serde_json::Value::Object(obj)
+        );
+
+        Ok(vec![record])
     }
 }
