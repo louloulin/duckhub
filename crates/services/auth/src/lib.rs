@@ -19,10 +19,12 @@ use prometheus::{Counter, Histogram, Registry};
 pub mod jwt;
 pub mod password;
 pub mod masking;
+pub mod key_rotation;
 
 pub use jwt::*;
 pub use password::*;
 pub use masking::*;
+pub use key_rotation::*;
 
 /// 用户信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,8 +37,10 @@ pub struct User {
     pub email: String,
     /// 显示名称
     pub display_name: String,
+    /// 密码哈希
+    pub password_hash: String,
     /// 是否启用
-    pub enabled: bool,
+    pub is_active: bool,
     /// 创建时间
     pub created_at: DateTime<Utc>,
     /// 更新时间
@@ -189,7 +193,8 @@ impl SecurityService {
                 username: username.to_string(),
                 email: "admin@example.com".to_string(),
                 display_name: "Administrator".to_string(),
-                enabled: true,
+                password_hash: String::new(),
+                is_active: true,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
                 last_login_at: Some(Utc::now()),
@@ -441,7 +446,8 @@ mod tests {
             username: "testuser".to_string(),
             email: "test@example.com".to_string(),
             display_name: "Test User".to_string(),
-            enabled: true,
+            password_hash: String::new(),
+            is_active: true,
             created_at: Utc::now(),
             updated_at: Utc::now(),
             last_login_at: None,

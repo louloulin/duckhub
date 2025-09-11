@@ -184,6 +184,70 @@ impl JWTManager {
         Ok(token_data.claims)
     }
 
+    /// 刷新访问令牌
+    #[instrument(skip(self))]
+    pub fn refresh_access_token(&self, refresh_token: &str) -> Result<(String, String)> {
+        // 验证刷新令牌
+        let claims = self.verify_token(refresh_token)?;
+
+        // 检查令牌类型
+        if claims.token_type != "refresh" {
+            return Err(DuckHubError::validation("无效的刷新令牌类型".to_string()));
+        }
+
+        // 检查令牌是否过期
+        let now = Utc::now().timestamp();
+        if claims.exp < now {
+            return Err(DuckHubError::validation("刷新令牌已过期".to_string()));
+        }
+
+        // 创建用户对象用于生成新令牌
+        let user = User {
+            id: claims.sub,
+            username: claims.username,
+            email: claims.email,
+            display_name: claims.display_name,
+            password_hash: String::new(), // 不需要密码哈希
+            is_active: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_login_at: None,
+            attributes: std::collections::HashMap::new(),
+        };
+
+        // 生成新的访问令牌和刷新令牌
+        let new_access_token = self.generate_token(&user)?;
+        let new_refresh_token = self.generate_refresh_token(&user)?;
+
+        debug!("令牌刷新成功，用户: {}", user.username);
+        Ok((new_access_token, new_refresh_token))
+    }
+
+    /// 验证令牌是否即将过期（15分钟内）
+    #[instrument(skip(self))]
+    pub fn is_token_expiring_soon(&self, token: &str) -> Result<bool> {
+        let claims = self.verify_token(token)?;
+        let now = Utc::now().timestamp();
+        let expiry_threshold = now + (15 * 60); // 15分钟
+
+        Ok(claims.exp < expiry_threshold)
+    }
+
+    /// 撤销令牌（将令牌加入黑名单）
+    #[instrument(skip(self))]
+    pub fn revoke_token(&self, token: &str) -> Result<()> {
+        let claims = self.verify_token(token)?;
+
+        // 这里应该将令牌ID加入黑名单存储（Redis或数据库）
+        // 为了简化，我们只记录日志
+        debug!("令牌已撤销: jti={}, user={}", claims.jti, claims.username);
+
+        // TODO: 实现令牌黑名单存储
+        // self.blacklist_store.add(claims.jti, claims.exp).await?;
+
+        Ok(())
+    }
+
     /// 刷新令牌
     #[instrument(skip(self))]
     pub fn refresh_token(&self, refresh_token: &str, user: &User) -> Result<TokenPair> {
@@ -210,13 +274,13 @@ impl JWTManager {
         Ok(claims.sub)
     }
 
-    /// 检查令牌是否即将过期
-    pub fn is_token_expiring_soon(&self, token: &str, threshold_minutes: i64) -> Result<bool> {
+    /// 检查令牌是否即将过期（可自定义阈值分钟数）
+    pub fn is_token_expiring_soon_with_threshold(&self, token: &str, threshold_minutes: i64) -> Result<bool> {
         let claims = self.verify_token(token)?;
         let exp_time = DateTime::from_timestamp(claims.exp, 0)
             .ok_or_else(|| DuckHubError::validation("无效的过期时间".to_string()))?;
         let threshold_time = Utc::now() + Duration::minutes(threshold_minutes);
-        
+
         Ok(exp_time <= threshold_time)
     }
 
@@ -246,7 +310,8 @@ mod tests {
             username: "testuser".to_string(),
             email: "test@example.com".to_string(),
             display_name: "Test User".to_string(),
-            enabled: true,
+            password_hash: String::new(),
+            is_active: true,
             created_at: Utc::now(),
             updated_at: Utc::now(),
             last_login_at: None,

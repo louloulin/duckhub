@@ -161,14 +161,14 @@ impl QueryOptimizer {
     /// Optimize a query with advanced techniques
     pub fn optimize_query(&self, query: &Query) -> Result<Query> {
         let mut optimized_sql = query.sql.clone();
-        let mut applied_optimizations = Vec::new();
+        let mut applied_optimizations: Vec<String> = Vec::new();
 
         // 1. 基础优化规则
         for rule in &self.rules {
             if let Ok(new_sql) = self.apply_rule(rule, &optimized_sql) {
                 if new_sql != optimized_sql {
                     optimized_sql = new_sql;
-                    applied_optimizations.push(rule.name());
+                    applied_optimizations.push(rule.name().to_string());
                 }
             }
         }
