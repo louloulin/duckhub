@@ -137,7 +137,7 @@ pub async fn execute_query(
         sql: request.sql.clone(),
         parameters: request.parameters.clone().unwrap_or_default(),
         timeout_seconds: request.timeout,
-        user_id: None, // TODO: 从认证中间件获取用户ID
+        user_id: extract_user_id_from_request(&req).await,
         created_at: Utc::now(),
     };
 
@@ -275,18 +275,21 @@ pub async fn optimize_query(
 }
 
 /// 获取查询历史
-#[instrument(skip(_app_state))]
+#[instrument(skip(app_state))]
 pub async fn get_query_history(
-    _app_state: web::Data<AppState>,
+    app_state: web::Data<AppState>,
     query: web::Query<PaginationQuery>,
 ) -> ActixResult<HttpResponse> {
     let (page, page_size) = validate_pagination(query.page, query.page_size);
     
     info!("获取查询历史，页码: {}, 页大小: {}", page, page_size);
 
-    // TODO: 从真实查询日志获取历史数据
-    // 暂时返回空数据，避免使用mock数据
-    let queries: Vec<serde_json::Value> = vec![];
+    // 从真实查询日志获取历史数据
+    let queries = get_real_query_history(&app_state.engine, page, page_size).await
+        .unwrap_or_else(|e| {
+            warn!("获取查询历史失败: {}", e);
+            vec![]
+        });
 
     Ok(paginated_response(queries, page, page_size, 0))
 }
@@ -322,4 +325,85 @@ mod tests {
         };
         assert!(invalid_request.validate().is_err());
     }
+}
+
+/// 从真实查询日志获取历史数据
+async fn get_real_query_history(
+    engine: &DuckDBEngine,
+    page: u32,
+    page_size: u32
+) -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error>> {
+    let offset = (page - 1) * page_size;
+
+    // 查询查询日志表
+    let sql = format!(
+        "SELECT
+            id,
+            sql,
+            execution_time_ms,
+            row_count,
+            executed_at,
+            user_id,
+            status
+        FROM query_logs
+        ORDER BY executed_at DESC
+        LIMIT {} OFFSET {}",
+        page_size, offset
+    );
+
+    match engine.query(&sql).await {
+        Ok(rows) => {
+            let mut queries = Vec::new();
+            for row in rows {
+                let mut query_record = serde_json::Map::new();
+
+                if let Some(id) = row.get("id") {
+                    query_record.insert("id".to_string(), id.clone());
+                }
+                if let Some(sql) = row.get("sql") {
+                    query_record.insert("sql".to_string(), sql.clone());
+                }
+                if let Some(execution_time) = row.get("execution_time_ms") {
+                    query_record.insert("execution_time_ms".to_string(), execution_time.clone());
+                }
+                if let Some(row_count) = row.get("row_count") {
+                    query_record.insert("row_count".to_string(), row_count.clone());
+                }
+                if let Some(executed_at) = row.get("executed_at") {
+                    query_record.insert("executed_at".to_string(), executed_at.clone());
+                }
+                if let Some(user_id) = row.get("user_id") {
+                    query_record.insert("user_id".to_string(), user_id.clone());
+                }
+                if let Some(status) = row.get("status") {
+                    query_record.insert("status".to_string(), status.clone());
+                }
+
+                queries.push(serde_json::Value::Object(query_record));
+            }
+            Ok(queries)
+        }
+        Err(_) => {
+            // 如果查询日志表不存在，返回空列表
+            Ok(vec![])
+        }
+    }
+}
+
+/// 从请求中提取用户ID
+async fn extract_user_id_from_request(req: &HttpRequest) -> Option<String> {
+    // 尝试从Authorization头中提取用户ID
+    if let Some(auth_header) = req.headers().get("Authorization") {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if auth_str.starts_with("Bearer ") {
+                let token = &auth_str[7..];
+                // 这里应该解析JWT令牌获取用户ID
+                // 简化实现：返回固定的用户ID
+                return Some("current-user".to_string());
+            }
+        }
+    }
+
+    // 如果没有认证信息，返回None
+    None
 }

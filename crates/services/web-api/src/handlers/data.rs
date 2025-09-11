@@ -374,17 +374,12 @@ pub async fn get_table_data(
 
     info!("获取表 {} 的数据，limit: {}, offset: {}", table_name, limit, offset);
 
-    // TODO: 从真实数据库获取表数据
-    // 暂时返回空数据，避免使用mock数据
-    let (columns, data, total_rows) = match table_name.as_str() {
-        "transactions" | "users" => {
-            // 返回空数据结构
-            (vec![], vec![], 0u64)
-        },
-
-        _ => {
-            error!("表 {} 不存在", table_name);
-            return Ok(error_response("表不存在", 404));
+    // 从真实数据库获取表数据
+    let (columns, data, total_rows) = match get_real_table_data(&app_state.engine, &table_name, limit, offset).await {
+        Ok((cols, rows, total)) => (cols, rows, total),
+        Err(e) => {
+            error!("获取表 {} 数据失败: {}", table_name, e);
+            return Ok(error_response(&format!("获取表数据失败: {}", e), 500));
         }
     };
 
@@ -732,4 +727,93 @@ async fn get_table_column_count(engine: &Arc<DuckDBEngine>, table_name: &str) ->
         },
         Err(_) => Ok(0),
     }
+}
+
+/// 从真实数据库获取表数据
+async fn get_real_table_data(
+    engine: &Arc<DuckDBEngine>,
+    table_name: &str,
+    limit: u32,
+    offset: u32
+) -> Result<(Vec<String>, Vec<Vec<serde_json::Value>>, u64), Box<dyn std::error::Error>> {
+    // 首先检查表是否存在
+    let check_sql = format!(
+        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{}'",
+        table_name
+    );
+
+    match engine.query(&check_sql).await {
+        Ok(rows) => {
+            if let Some(row) = rows.first() {
+                if let Some(count) = row.get("count") {
+                    if count.as_u64().unwrap_or(0) == 0 {
+                        return Err(format!("表 {} 不存在", table_name).into());
+                    }
+                }
+            }
+        }
+        Err(e) => return Err(format!("检查表存在性失败: {}", e).into()),
+    }
+
+    // 获取表的列信息
+    let columns_sql = format!(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = '{}' ORDER BY ordinal_position",
+        table_name
+    );
+
+    let columns = match engine.query(&columns_sql).await {
+        Ok(rows) => {
+            rows.iter()
+                .filter_map(|row| row.get("column_name").map(|v| v.to_string()))
+                .collect::<Vec<String>>()
+        }
+        Err(e) => return Err(format!("获取列信息失败: {}", e).into()),
+    };
+
+    if columns.is_empty() {
+        return Ok((vec![], vec![], 0));
+    }
+
+    // 获取总行数
+    let count_sql = format!("SELECT COUNT(*) as total FROM {}", table_name);
+    let total_rows = match engine.query(&count_sql).await {
+        Ok(rows) => {
+            rows.first()
+                .and_then(|row| row.get("total"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+        }
+        Err(_) => 0,
+    };
+
+    // 获取数据
+    let data_sql = format!(
+        "SELECT * FROM {} LIMIT {} OFFSET {}",
+        table_name, limit, offset
+    );
+
+    let data = match engine.query(&data_sql).await {
+        Ok(rows) => {
+            rows.iter()
+                .map(|row| {
+                    columns.iter()
+                        .map(|col| {
+                            row.get(col)
+                                .map(|v| match v {
+                                    serde_json::Value::String(s) => serde_json::Value::String(s.clone()),
+                                    serde_json::Value::Number(n) => serde_json::Value::Number(n.clone()),
+                                    serde_json::Value::Bool(b) => serde_json::Value::Bool(*b),
+                                    serde_json::Value::Null => serde_json::Value::Null,
+                                    _ => serde_json::Value::String(v.to_string()),
+                                })
+                                .unwrap_or(serde_json::Value::Null)
+                        })
+                        .collect()
+                })
+                .collect()
+        }
+        Err(e) => return Err(format!("获取表数据失败: {}", e).into()),
+    };
+
+    Ok((columns, data, total_rows))
 }

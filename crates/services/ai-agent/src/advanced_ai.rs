@@ -102,7 +102,7 @@ pub enum QueryComplexity {
 }
 
 /// 业务领域
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum BusinessDomain {
     /// 交易分析
     Trading,
@@ -134,7 +134,7 @@ pub struct Entity {
 }
 
 /// 实体类型
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum EntityType {
     /// 表名
     TableName,

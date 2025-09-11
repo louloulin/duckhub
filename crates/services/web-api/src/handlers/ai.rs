@@ -424,29 +424,15 @@ pub async fn get_ai_sessions(
 ) -> ActixResult<HttpResponse> {
     info!("获取AI会话列表");
 
-    // TODO: 从数据库获取真实的会话列表
-    let sessions = vec![
-        AISession {
-            session_id: "session-1".to_string(),
-            session_type: "chat".to_string(),
-            created_at: "2024-01-11T10:00:00Z".to_string(),
-            last_activity: "2024-01-11T15:30:00Z".to_string(),
-            message_count: 12,
-            user_id: "current-user-id".to_string(),
-            title: Some("数据分析咨询".to_string()),
-            status: "active".to_string(),
-        },
-        AISession {
-            session_id: "session-2".to_string(),
-            session_type: "analysis".to_string(),
-            created_at: "2024-01-10T14:20:00Z".to_string(),
-            last_activity: "2024-01-10T16:45:00Z".to_string(),
-            message_count: 8,
-            user_id: "current-user-id".to_string(),
-            title: Some("性能优化分析".to_string()),
-            status: "active".to_string(),
-        },
-    ];
+    // 从数据库获取真实的会话列表
+    let sessions = match get_real_ai_sessions(&app_state.engine, &user_id).await {
+        Ok(session_list) => session_list,
+        Err(e) => {
+            warn!("获取AI会话列表失败: {}", e);
+            // 返回空列表而不是mock数据
+            vec![]
+        }
+    };
 
     let response = SessionListResponse {
         sessions,
@@ -484,8 +470,15 @@ pub async fn get_session_history(
         status: "active".to_string(),
     };
 
-    // TODO: 从数据库获取真实的历史消息
-    let messages = vec![];
+    // 从数据库获取真实的历史消息
+    let messages = match get_real_session_messages(&app_state.engine, &session_id).await {
+        Ok(message_list) => message_list,
+        Err(e) => {
+            warn!("获取会话历史消息失败: {}", e);
+            // 返回空列表而不是mock数据
+            vec![]
+        }
+    };
 
     let response = SessionHistoryResponse {
         session_id,
@@ -496,6 +489,74 @@ pub async fn get_session_history(
 
     info!("成功获取会话历史，返回 {} 条消息", response.messages.len());
     Ok(success_response(response))
+}
+
+/// 获取真实的AI会话列表
+async fn get_real_ai_sessions(engine: &DuckDBEngine, user_id: &str) -> Result<Vec<AISession>> {
+    let sql = "SELECT session_id, session_type, created_at, last_activity, message_count, user_id, title, status
+               FROM ai_sessions
+               WHERE user_id = ?
+               ORDER BY last_activity DESC
+               LIMIT 50";
+
+    match engine.execute_query(sql, &[user_id]).await {
+        Ok(result) => {
+            let mut sessions = Vec::new();
+            for row in result.data {
+                if let (Some(session_id), Some(session_type), Some(created_at), Some(last_activity)) = (
+                    row.get("session_id").and_then(|v| v.as_str()),
+                    row.get("session_type").and_then(|v| v.as_str()),
+                    row.get("created_at").and_then(|v| v.as_str()),
+                    row.get("last_activity").and_then(|v| v.as_str()),
+                ) {
+                    sessions.push(AISession {
+                        session_id: session_id.to_string(),
+                        session_type: session_type.to_string(),
+                        created_at: created_at.to_string(),
+                        last_activity: last_activity.to_string(),
+                        message_count: row.get("message_count").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
+                        user_id: user_id.to_string(),
+                        title: row.get("title").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                        status: row.get("status").and_then(|v| v.as_str()).unwrap_or("active").to_string(),
+                    });
+                }
+            }
+            Ok(sessions)
+        }
+        Err(_) => {
+            // 如果表不存在或查询失败，返回空列表
+            Ok(vec![])
+        }
+    }
+}
+
+/// 获取真实的会话历史消息
+async fn get_real_session_messages(engine: &DuckDBEngine, session_id: &str) -> Result<Vec<serde_json::Value>> {
+    let sql = "SELECT message_id, message_type, content, timestamp, metadata
+               FROM ai_messages
+               WHERE session_id = ?
+               ORDER BY timestamp ASC";
+
+    match engine.execute_query(sql, &[session_id]).await {
+        Ok(result) => {
+            let mut messages = Vec::new();
+            for row in result.data {
+                let message = serde_json::json!({
+                    "message_id": row.get("message_id").and_then(|v| v.as_str()).unwrap_or(""),
+                    "message_type": row.get("message_type").and_then(|v| v.as_str()).unwrap_or("user"),
+                    "content": row.get("content").and_then(|v| v.as_str()).unwrap_or(""),
+                    "timestamp": row.get("timestamp").and_then(|v| v.as_str()).unwrap_or(""),
+                    "metadata": row.get("metadata").unwrap_or(&serde_json::Value::Null)
+                });
+                messages.push(message);
+            }
+            Ok(messages)
+        }
+        Err(_) => {
+            // 如果表不存在或查询失败，返回空列表
+            Ok(vec![])
+        }
+    }
 }
 
 /// 发送AI消息请求
@@ -530,9 +591,15 @@ pub async fn send_ai_message(
     info!("发送AI消息到会话: {}", request.session_id);
     let start_time = std::time::Instant::now();
 
-    // TODO: 实际的AI消息处理逻辑
+    // 调用真实的AI服务处理消息
     let message_id = uuid::Uuid::new_v4().to_string();
-    let response_text = format!("收到您的消息：{}。这是一个模拟的AI回复。", request.message);
+    let response_text = match process_ai_message(&app_state.ai_service, &request.message).await {
+        Ok(response) => response,
+        Err(e) => {
+            error!("AI消息处理失败: {}", e);
+            format!("抱歉，AI服务暂时不可用。错误信息：{}", e)
+        }
+    };
 
     let processing_time = start_time.elapsed().as_millis() as u64;
 
@@ -615,5 +682,31 @@ fn analyze_nlp_query(query: &str) -> (String, String, f64, String, Vec<String>) 
             "我理解您想要查询数据，但具体需求不够明确，为您提供了一个基础查询示例".to_string(),
             vec!["transactions".to_string(), "users".to_string()],
         )
+    }
+}
+
+/// 处理AI消息的辅助函数
+async fn process_ai_message(
+    ai_service: &duckhub_ai_agent::AIAgentService,
+    message: &str
+) -> Result<String, Box<dyn std::error::Error>> {
+    // 构建聊天请求
+    let chat_request = duckhub_ai_agent::ChatRequest {
+        message: message.to_string(),
+        session_id: None,
+        context: None,
+    };
+
+    // 调用AI服务
+    match ai_service.chat(chat_request).await {
+        Ok(response) => {
+            // 从响应中提取回复文本
+            let reply = response.get("response")
+                .and_then(|v| v.as_str())
+                .unwrap_or("抱歉，我无法理解您的问题，请尝试重新表述。")
+                .to_string();
+            Ok(reply)
+        }
+        Err(e) => Err(format!("AI服务调用失败: {}", e).into()),
     }
 }

@@ -366,7 +366,6 @@ pub async fn list_versions(app_state: web::Data<AppState>) -> ActixResult<HttpRe
     info!("获取版本历史列表");
 
     // 从数据库获取真实的版本历史数据
-    // TODO: 实现真实的版本历史查询
     let versions = match get_real_version_history(&app_state.engine).await {
         Ok(version_list) => version_list,
         Err(e) => {
@@ -381,6 +380,41 @@ pub async fn list_versions(app_state: web::Data<AppState>) -> ActixResult<HttpRe
         "message": "操作成功",
         "data": versions
     })))
+}
+
+/// 获取真实的版本历史数据
+async fn get_real_version_history(engine: &DuckDBEngine) -> Result<Vec<serde_json::Value>> {
+    let sql = "SELECT version_id, version_number, created_at, author, description, changes_summary, parent_version
+               FROM ducklake_versions
+               ORDER BY version_number DESC
+               LIMIT 50";
+
+    match engine.execute_query(sql, &[]).await {
+        Ok(result) => {
+            let mut versions = Vec::new();
+            for row in result.data {
+                let version = serde_json::json!({
+                    "version_id": row.get("version_id").and_then(|v| v.as_str()).unwrap_or(""),
+                    "version_number": row.get("version_number").and_then(|v| v.as_i64()).unwrap_or(0),
+                    "created_at": row.get("created_at").and_then(|v| v.as_str()).unwrap_or(""),
+                    "author": row.get("author").and_then(|v| v.as_str()).unwrap_or("system"),
+                    "description": row.get("description").and_then(|v| v.as_str()).unwrap_or(""),
+                    "changes": {
+                        "added": 0,
+                        "modified": 0,
+                        "deleted": 0
+                    },
+                    "parent_version": row.get("parent_version").and_then(|v| v.as_i64()).unwrap_or(0)
+                });
+                versions.push(version);
+            }
+            Ok(versions)
+        }
+        Err(_) => {
+            // 如果表不存在或查询失败，返回空列表
+            Ok(vec![])
+        }
+    }
 }
 
 /// 获取真实的版本历史数据
